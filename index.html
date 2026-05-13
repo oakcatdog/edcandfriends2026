@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>EDC and Friends 2026</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EDC & Friends">
+<meta name="theme-color" content="#0a0a14">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiRURDIGFuZCBGcmllbmRzIDIwMjYiLCJzaG9ydF9uYW1lIjoiRURDIEZyaWVuZHMiLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYTBhMTQiLCJ0aGVtZV9jb2xvciI6IiMwYTBhMTQiLCJpY29ucyI6W119">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
@@ -82,20 +88,19 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
   @keyframes slideLeft{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-120%)}}
   @keyframes slideRight{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(120%)}}
+  @keyframes screenFlash{0%{opacity:0.15}100%{opacity:0}}
   @keyframes slideUp{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-80%)}}
   @keyframes slideIn{from{opacity:0;transform:scale(0.9) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
   .discover-card{animation:slideIn 0.25s ease}
   .discover-card.exit-left{animation:slideLeft 0.25s ease forwards}
   .discover-card.exit-right{animation:slideRight 0.25s ease forwards}
   .discover-card.exit-up{animation:slideUp 0.25s ease forwards}
+  .echo{position:fixed;z-index:9999;pointer-events:none;will-change:transform,opacity}
   @keyframes onlineGlow{0%,100%{box-shadow:0 0 4px var(--glow-color),0 0 8px var(--glow-color)}50%{box-shadow:0 0 8px var(--glow-color),0 0 16px var(--glow-color),0 0 24px var(--glow-color)}}
   @keyframes badgePulse{0%,100%{box-shadow:0 0 3px var(--badge-glow)}50%{box-shadow:0 0 8px var(--badge-glow),0 0 14px var(--badge-glow)}}
   @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
   .discover-tab{background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff,#ff2d55)!important;background-size:300% 300%!important;animation:gradientShift 4s ease infinite;color:#fff!important;-webkit-text-fill-color:#fff!important;font-weight:800!important;border-radius:20px!important;padding:6px 16px!important}
   @keyframes popularGlow{0%,100%{box-shadow:0 0 3px rgba(88,86,214,0.4),0 0 6px rgba(88,86,214,0.2)}50%{box-shadow:0 0 8px rgba(88,86,214,0.6),0 0 14px rgba(88,86,214,0.3)}}
-  @keyframes emojiFirework{0%{transform:translate(0,0) scale(0.3) rotate(0deg);opacity:1}15%{transform:translate(var(--ex),var(--ey)) scale(1.2) rotate(90deg);opacity:1}60%{transform:translate(calc(var(--ex)*1.3),calc(var(--ey)*1.3 + 40px)) scale(1) rotate(200deg);opacity:0.8}100%{transform:translate(calc(var(--ex)*1.5),calc(var(--ey)*1.5 + 120px)) scale(0.5) rotate(360deg);opacity:0}}
-  @keyframes screenFlash{0%{opacity:0.15}100%{opacity:0}}
-  .emoji-burst{position:fixed;pointer-events:none;z-index:9999;font-size:var(--esize);animation:emojiFirework var(--edur) cubic-bezier(.15,.8,.3,1) forwards}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -224,6 +229,8 @@ var isDark = true;
 var showColorPicker = false;
 var meetupSpots = {}; // { "Kinetic Field": "Left side near sound booth", ... }
 var activePinStage = null; // which stage pin popup is showing
+var mapUrl = ""; // user-configurable map image URL
+var meetupEditOpen = false; // collapsed edit section toggle
 var lastLocalWrite = 0; // timestamp of last local pick change
 var resolvedConflicts = {}; // { "artistA|||artistB": "chosen:artistA" or "deferred" }
 var discoverIndex = 0; // current card index in discover mode
@@ -277,47 +284,79 @@ function startHeartbeat(){
   });
 }
 
-// ── Emoji Burst System ──
+// ── Emoji Echo System ──
 var burstCooldown = 0;
 var burstRecipientCooldowns = {};
-var activeBurstCount = 0;
-var MAX_BURSTS = 3;
+var echoActive = false;
 var RANDOM_EMOJIS = ["\u{1F525}","\u26A1","\u{1F389}","\u{1F680}","\u{1F308}","\u{1F3B6}","\u{1F31F}","\u{1F4A5}","\u2728","\u{1F3B5}","\u{1F984}","\u{1F47E}","\u{1F30A}","\u{1F98B}","\u{1F3AF}"];
 
-function spawnFireworks(emoji, count){
-  count = count || 25;
-  if(activeBurstCount >= MAX_BURSTS) return;
-  activeBurstCount++;
-  var flash = document.createElement("div");
-  flash.style.cssText = "position:fixed;inset:0;z-index:9998;pointer-events:none;background:radial-gradient(circle at 50% 80%,rgba(255,255,255,0.15),transparent 70%);animation:screenFlash 0.6s ease forwards";
-  document.body.appendChild(flash);
-  setTimeout(function(){ flash.remove(); }, 600);
-  var cx = window.innerWidth / 2;
-  var cy = window.innerHeight - 60;
-  for(var i = 0; i < count; i++){
-    (function(idx){
-      setTimeout(function(){
-        var el = document.createElement("div");
-        el.className = "emoji-burst";
-        el.textContent = emoji;
-        var angle = (Math.random() * Math.PI * 1.4) - Math.PI * 0.7;
-        var force = 120 + Math.random() * 200;
-        var ex = Math.cos(angle) * force;
-        var ey = Math.sin(angle) * force * -1;
-        var size = 20 + Math.random() * 24;
-        var dur = 1.5 + Math.random() * 1;
-        el.style.setProperty("--ex", ex + "px");
-        el.style.setProperty("--ey", ey + "px");
-        el.style.setProperty("--esize", size + "px");
-        el.style.setProperty("--edur", dur + "s");
-        el.style.left = cx + "px";
-        el.style.top = cy + "px";
-        document.body.appendChild(el);
-        setTimeout(function(){ el.remove(); }, dur * 1000 + 100);
-      }, idx * 40);
-    })(i);
+function echoEmoji(emoji){
+  if(echoActive) return;
+  echoActive=true;
+  var W=window.innerWidth,H=window.innerHeight;
+  var cx=W/2,cy=H/2;
+  var maxDist=Math.sqrt(cx*cx+cy*cy);
+  var els=[];
+  var startTime=performance.now();
+
+  var waves=[{count:30,waveDelay:0},{count:25,waveDelay:600},{count:20,waveDelay:1200}];
+
+  waves.forEach(function(wave){
+    for(var i=0;i<wave.count;i++){
+      var el=document.createElement("div");
+      el.className="echo";
+      el.textContent=emoji;
+      var fx=Math.random()*W,fy=Math.random()*H;
+      var dx=fx-cx,dy=fy-cy;
+      var dist=Math.sqrt(dx*dx+dy*dy);
+      var size;var r=Math.random();
+      if(r<0.12)size=55+Math.random()*35;
+      else if(r<0.35)size=35+Math.random()*22;
+      else if(r<0.65)size=22+Math.random()*15;
+      else size=14+Math.random()*10;
+      var rot=(Math.random()-0.5)*25;
+      el.style.fontSize=size+"px";
+      el.style.left=cx+"px";el.style.top=cy+"px";
+      el.style.transform="translate(-50%,-50%) scale(0) rotate("+rot+"deg)";
+      el.style.opacity="0";
+      document.body.appendChild(el);
+      els.push({el:el,cx:cx,cy:cy,fx:fx,fy:fy,rot:rot,delay:wave.waveDelay+dist/maxDist*300});
+    }
+  });
+
+  var maxDelay=0;
+  for(var i=0;i<els.length;i++){if(els[i].delay>maxDelay)maxDelay=els[i].delay;}
+
+  function tick(now){
+    var elapsed=now-startTime;var allDone=true;
+    var globalAge=elapsed/1000;
+    var allPlacedAt=maxDelay/1000+0.5;
+    var fadeStart=allPlacedAt+1.0;
+    var fadeEnd=fadeStart+1.0;
+
+    for(var i=0;i<els.length;i++){
+      var e=els[i];var t=(elapsed-e.delay)/1000;
+      if(t<0){allDone=false;continue;}
+      var totalLife=fadeEnd-e.delay/1000;
+      if(t>totalLife+0.5){if(e.el.parentNode)e.el.remove();continue;}
+      allDone=false;
+      var moveT=Math.min(t/0.4,1);
+      var ease=1-Math.pow(1-moveT,3);
+      var x=e.cx+(e.fx-e.cx)*ease;
+      var y=e.cy+(e.fy-e.cy)*ease;
+      var scale,opacity;
+      if(t<0.12){var p=t/0.12;scale=p*1.25;opacity=p;}
+      else if(t<0.2){var p=(t-0.12)/0.08;scale=1.25-0.3*p;opacity=1;}
+      else if(t<0.28){var p=(t-0.2)/0.08;scale=0.95+0.05*p;opacity=1;}
+      else{scale=1;opacity=1;}
+      if(globalAge>fadeStart){var fp=Math.min((globalAge-fadeStart)/(fadeEnd-fadeStart),1);scale*=(1-fp*0.4);opacity*=(1-fp);}
+      e.el.style.left=x+"px";e.el.style.top=y+"px";
+      e.el.style.transform="translate(-50%,-50%) scale("+Math.max(0,scale)+") rotate("+e.rot+"deg)";
+      e.el.style.opacity=Math.max(0,opacity);
+    }
+    if(!allDone)requestAnimationFrame(tick);else echoActive=false;
   }
-  setTimeout(function(){ activeBurstCount--; }, 2500);
+  requestAnimationFrame(tick);
 }
 
 function sendBurst(targetName){
@@ -331,7 +370,7 @@ function sendBurst(targetName){
   var myEmoji = getEmoji(identity);
   var needsReminder = !myEmoji;
   if(!myEmoji) myEmoji = RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)];
-  spawnFireworks(myEmoji);
+  echoEmoji(myEmoji);
   if(needsReminder){
     var banner = document.createElement("div");
     banner.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:10000;padding:10px 16px;background:rgba(88,86,214,0.95);color:#fff;font-size:12px;font-weight:600;text-align:center;animation:fadeIn 0.2s ease;font-family:inherit";
@@ -358,7 +397,15 @@ async function checkIncomingBursts(){
       fbPut("edc2026_bursts/"+encodeURIComponent(identity), null);
       return;
     }
-    spawnFireworks(burst.emoji || "\u{1F525}");
+    var emoji = burst.emoji || "\u{1F525}";
+    var fromName = burst.from || "Someone";
+    echoEmoji(emoji);
+    // Receiver notification
+    var notif = document.createElement("div");
+    notif.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10000;padding:8px 20px;border-radius:20px;background:rgba(88,86,214,0.92);color:#fff;font-size:13px;font-weight:600;font-family:inherit;box-shadow:0 4px 16px rgba(0,0,0,0.4);white-space:nowrap;animation:fadeIn 0.2s ease";
+    notif.textContent = emoji+" "+fromName+" says hi!";
+    document.body.appendChild(notif);
+    setTimeout(function(){ notif.style.transition="opacity 0.5s"; notif.style.opacity="0"; setTimeout(function(){ notif.remove(); },500); },3500);
     fbPut("edc2026_bursts/"+encodeURIComponent(identity), null);
   }catch(e){}
 }
@@ -443,6 +490,17 @@ async function saveMeetup(stage,text){
 }
 function getMeetup(stage){ return meetupSpots[stage]||""; }
 function hasMeetup(stage){ return !!(meetupSpots[stage] && meetupSpots[stage].trim()); }
+
+async function loadMapUrl(){
+  try{
+    var r=await fbGet("edc2026_mapUrl");
+    if(r && typeof r==="string") mapUrl=r;
+  }catch(e){}
+}
+async function saveMapUrl(url){
+  mapUrl=url;
+  try{ await fbPut("edc2026_mapUrl",url); }catch(e){}
+}
 
 function showPin(stage,evt){
   if(evt) evt.stopPropagation();
@@ -742,6 +800,12 @@ async function syncFromServer(){
     }
     // Check for incoming emoji bursts
     await checkIncomingBursts();
+    // Sync map URL
+    var newMap = await fbGet("edc2026_mapUrl");
+    if(newMap && typeof newMap === "string" && newMap !== mapUrl){
+      mapUrl = newMap;
+      if(identity && currentView === "meetups") renderContent();
+    }
   } catch(e){}
 }
 
@@ -759,6 +823,7 @@ function startPolling(){
   loadColors();
   loadMeetups();
   loadEmojis();
+  loadMapUrl();
   pollTimer = setInterval(syncFromServer, 4000);
 }
 
@@ -795,34 +860,43 @@ function showLogin(){
 
 /* ================================================================ LOGIN ================================================================ */
 function initLogin(){
-  var f = friends();
-  var ef = document.getElementById("existing-friends");
-  var fb = document.getElementById("friend-buttons");
-  var jl = document.getElementById("join-label");
-  var jd = document.getElementById("join-divider");
+  loadOnlineStatus().then(function(){
+    var f = friends();
+    var ef = document.getElementById("existing-friends");
+    var fb = document.getElementById("friend-buttons");
+    var jl = document.getElementById("join-label");
+    var jd = document.getElementById("join-divider");
 
-  if(f.length > 0){
-    ef.classList.remove("hidden");
-    jl.textContent = "Or join as someone new";
-    jd.style.cssText = "border-top:1px solid "+V('bd')+";padding-top:16px";
-    fb.innerHTML = "";
-    f.forEach(function(name){
-      var count = Object.keys(allPicks[name]||{}).length;
-      var btn = document.createElement("button");
-      btn.className = "chip";
-      btn.style.background = fc(name)+"22";
-      btn.style.color = fc(name);
-      var emoji = getEmoji(name);
-      var label = emoji ? emoji+" " : "";
-      btn.innerHTML = label+esc(name)+'<span style="opacity:0.5;margin-left:4px;font-size:11px">('+count+')</span>';
-      btn.onclick = function(){ joinAs(name); };
-      fb.appendChild(btn);
-    });
-  } else {
-    ef.classList.add("hidden");
-    jl.textContent = "Enter your name to start";
-    jd.style.cssText = "";
-  }
+    if(f.length > 0){
+      ef.classList.remove("hidden");
+      jl.textContent = "Or join as someone new";
+      jd.style.cssText = "border-top:1px solid "+V('bd')+";padding-top:16px";
+      fb.innerHTML = "";
+      f.forEach(function(name){
+        var count = Object.keys(allPicks[name]||{}).length;
+        var online = isOnline(name);
+        var btn = document.createElement("button");
+        btn.className = "chip";
+        btn.style.background = fc(name)+"22";
+        btn.style.color = fc(name);
+        if(online){
+          btn.style.setProperty("--glow-color",fc(name)+"88");
+          btn.style.animation="onlineGlow 2s ease-in-out infinite";
+          btn.style.border="1px solid "+fc(name)+"66";
+        }
+        var emoji = getEmoji(name);
+        var label = emoji ? emoji+" " : "";
+        var onlineDot = online ? '<span style="display:inline-block;width:6px;height:6px;border-radius:3px;background:#30d158;margin-right:3px"></span>' : '';
+        btn.innerHTML = onlineDot+label+esc(name)+'<span style="opacity:0.5;margin-left:4px;font-size:11px">('+count+')</span>';
+        btn.onclick = function(){ joinAs(name); };
+        fb.appendChild(btn);
+      });
+    } else {
+      ef.classList.add("hidden");
+      jl.textContent = "Enter your name to start";
+      jd.style.cssText = "";
+    }
+  });
 }
 
 function doJoin(){
@@ -1140,10 +1214,19 @@ function renderWelcome(el){
   h+='</div>';
 
   // ── Let's Go Button ──
-  h+='<div style="text-align:center;margin-bottom:20px">';
+  h+='<div style="text-align:center;margin-bottom:16px">';
   h+='<button onclick="switchView(\'discover\',document.querySelector(\'.discover-tab\'))" style="width:100%;max-width:320px;padding:16px 24px;border-radius:16px;border:none;cursor:pointer;font-size:18px;font-weight:800;font-family:inherit;color:#fff;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);background-size:300% 300%;animation:gradientShift 4s ease infinite;touch-action:manipulation">';
   h+='Let\u2019s Go \u2192</button>';
   h+='</div>';
+
+  // ── Install Prompt ──
+  h+='<div style="background:'+V('bg2')+';border:1px solid '+V('bd2')+';border-radius:14px;padding:14px 18px;margin-bottom:20px">';
+  h+='<div style="display:flex;align-items:flex-start;gap:10px">';
+  h+='<span style="font-size:24px">\u{1F4F1}</span>';
+  h+='<div>';
+  h+='<div style="font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:4px">Add to Home Screen for offline access</div>';
+  h+='<div style="font-size:11px;color:'+V('tx2')+';line-height:1.5">Works at the festival even without signal. On <strong>iPhone</strong>: tap the share button \u2934 then \u201CAdd to Home Screen.\u201D On <strong>Android</strong>: tap the menu \u22EE then \u201CInstall app.\u201D</div>';
+  h+='</div></div></div>';
 
   el.innerHTML=h;
 }
@@ -1973,13 +2056,15 @@ function saveMeetupFromInput(stage){
 
 function renderMeetups(el){
   var h='';
-  // Summary card - screenshot friendly
+  h+=tabTip('\u{1F4CD} Meetup spots for each stage + festival map. Everyone can see and edit these.');
+
   var setSpots = STAGES.filter(function(s){ return hasMeetup(s); });
 
+  // ── Summary Card ──
   if(setSpots.length > 0){
-    h+='<div id="meetup-summary" style="background:'+V('bg2')+';border:1px solid '+V('bd')+';border-radius:14px;padding:16px 18px;margin-bottom:20px">';
+    h+='<div id="meetup-summary" style="background:'+V('bg2')+';border:1px solid '+V('bd')+';border-radius:14px;padding:16px 18px;margin-bottom:12px">';
     h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-    h+='<div style="font-size:15px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">EDC and Friends \u2022 Meetup Spots</div>';
+    h+='<div style="font-size:15px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Meetup Spots</div>';
     h+='<button class="btn btn-primary" onclick="exportMeetupImage()" style="padding:6px 14px;font-size:11px" id="meetup-export-btn">Save as Image</button>';
     h+='</div>';
     h+='<div style="display:grid;gap:6px">';
@@ -1993,55 +2078,67 @@ function renderMeetups(el){
       h+='<div style="font-size:12px;color:'+V('tx')+';line-height:1.4">\u{1F4CD} '+esc(getMeetup(stage))+'</div>';
       h+='</div>';
     });
-    h+='</div>';
+    h+='</div></div>';
+  } else {
+    h+='<div style="padding:20px;border-radius:14px;background:'+V('bg2')+';border:1px solid '+V('bd')+';text-align:center;margin-bottom:12px">';
+    h+='<div style="font-size:14px;color:'+V('tx2')+'">No meetup spots set yet. Tap Edit below to add them.</div>';
     h+='</div>';
   }
 
-  h+='<div style="margin-bottom:16px">';
-  h+='<div style="font-size:15px;font-weight:700;color:'+V('tx')+';margin-bottom:4px">Stage Meetup Spots</div>';
-  h+='<div style="font-size:12px;color:'+V('tx2')+';line-height:1.5">Set a meetup location for each stage so your crew knows exactly where to find each other. Everyone can see and edit these. A \u{1F4CD} pin will appear next to the stage name on other tabs.</div>';
+  // ── Map Card ──
+  h+='<div style="background:'+V('bg2')+';border:1px solid '+V('bd')+';border-radius:14px;overflow:hidden;margin-bottom:12px">';
+  h+='<div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between">';
+  h+='<div style="font-size:15px;font-weight:700;color:'+V('tx')+'">\u{1F5FA}\uFE0F Festival Map</div>';
+  h+='</div>';
+  if(mapUrl){
+    h+='<div style="padding:0 12px 12px">';
+    h+='<img src="'+esc(mapUrl)+'" style="width:100%;border-radius:10px;display:block" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" alt="Festival Map">';
+    h+='<div style="display:none;padding:16px;text-align:center;color:#ff3b30;font-size:12px;background:rgba(255,59,48,0.06);border-radius:10px">Map image failed to load. Check the URL in Edit section.</div>';
+    h+='</div>';
+  } else {
+    h+='<div style="padding:20px;text-align:center">';
+    h+='<div style="font-size:40px;margin-bottom:8px">\u{1F5FA}\uFE0F</div>';
+    h+='<div style="font-size:13px;color:'+V('tx3')+'">No map set yet. Tap Edit below to paste a map image URL.</div>';
+    h+='</div>';
+  }
   h+='</div>';
 
-  h+='<div style="display:grid;gap:10px">';
-  STAGES.forEach(function(stage){
-    var spot = getMeetup(stage);
-    var stageColor = SC[stage]||"#888";
-    var inputId = "meetup-input-"+stage.replace(/\s+/g,"-");
-
-    h+='<div style="background:'+V('bg2')+';border:1px solid '+V('bd')+';border-radius:12px;padding:14px 16px">';
-
-    // Stage header
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
-    h+='<div style="width:5px;height:24px;border-radius:3px;background:'+stageColor+'"></div>';
-    h+='<span style="font-size:14px;font-weight:700;color:'+stageColor+'">'+esc(stage)+'</span>';
-    if(hasMeetup(stage)){
-      h+='<span style="font-size:12px;margin-left:auto">\u{1F4CD}</span>';
-    } else {
-      h+='<span style="font-size:11px;color:'+V('tx4')+';margin-left:auto">Not set</span>';
-    }
-    h+='</div>';
-
-    // Input field + Save button
+  // ── Edit Section (collapsible) ──
+  h+='<div style="background:'+V('bg2')+';border:1px solid '+V('bd')+';border-radius:14px;overflow:hidden">';
+  h+='<div onclick="meetupEditOpen=!meetupEditOpen;renderMeetups(document.getElementById(\'content\'))" style="padding:14px 18px;cursor:pointer;display:flex;align-items:center;justify-content:space-between">';
+  h+='<div style="font-size:14px;font-weight:700;color:'+V('tx')+'">\u270F\uFE0F Edit Meetup Spots & Map</div>';
+  h+='<span style="font-size:14px;color:'+V('tx3')+';transition:transform 0.2s;transform:rotate('+(meetupEditOpen?"180":"0")+'deg)">\u25BC</span>';
+  h+='</div>';
+  if(meetupEditOpen){
+    h+='<div style="padding:0 18px 16px">';
+    h+='<div style="margin-bottom:16px">';
+    h+='<div style="font-size:12px;font-weight:600;color:'+V('tx2')+';margin-bottom:6px">Map Image URL</div>';
     h+='<div style="display:flex;gap:8px;align-items:center">';
-    h+='<input id="'+inputId+'" class="input" value="'+esc(spot)+'" placeholder="e.g. Left side near the sound booth, by the big totem" ';
-    h+='style="flex:1;font-size:13px;padding:10px 12px;border-radius:10px;border:1px solid '+(hasMeetup(stage)?stageColor+"44":V('bd2'))+'" ';
-    h+='onkeydown="if(event.key===\'Enter\')saveMeetupFromInput(\''+esc(stage).replace(/'/g,"\\'")+'\');">';
-    h+='<button id="meetup-save-'+stage.replace(/\s+/g,"-")+'" class="btn btn-primary" style="padding:8px 16px;font-size:12px;border-radius:10px;white-space:nowrap" ';
-    h+='onclick="saveMeetupFromInput(\''+esc(stage).replace(/'/g,"\\'")+'\')">Save</button>';
+    h+='<input id="map-url-input" class="input" value="'+esc(mapUrl)+'" placeholder="Paste image URL (e.g. imgur, official EDC map)" style="flex:1;padding:10px 12px;font-size:12px;border-radius:10px">';
+    h+='<button class="btn btn-primary" style="padding:8px 16px;font-size:12px;border-radius:10px;white-space:nowrap" onclick="saveMapUrl(document.getElementById(\'map-url-input\').value.trim());renderMeetups(document.getElementById(\'content\'))">Save</button>';
     h+='</div>';
-
-    // Hint if spot is set
-    if(hasMeetup(stage)){
-      h+='<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:'+stageColor+'0d;border:1px solid '+stageColor+'22">';
-      h+='<div style="font-size:11px;color:'+stageColor+';display:flex;align-items:center;gap:4px">';
-      h+='\u{1F4CD} <strong>'+esc(stage)+':</strong> '+esc(spot);
+    h+='<div style="font-size:10px;color:'+V('tx4')+';margin-top:4px">Upload your map to imgur.com or any image host, then paste the direct image link here.</div>';
+    h+='</div>';
+    h+='<div style="height:1px;background:'+V('bd')+';margin-bottom:16px"></div>';
+    h+='<div style="font-size:12px;font-weight:600;color:'+V('tx2')+';margin-bottom:8px">Stage Meetup Locations</div>';
+    h+='<div style="display:grid;gap:10px">';
+    STAGES.forEach(function(stage){
+      var spot=getMeetup(stage);var stageColor=SC[stage]||"#888";
+      var inputId="meetup-input-"+stage.replace(/\s+/g,"-");
+      h+='<div>';
+      h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">';
+      h+='<div style="width:4px;height:16px;border-radius:2px;background:'+stageColor+'"></div>';
+      h+='<span style="font-size:12px;font-weight:700;color:'+stageColor+'">'+esc(stage)+'</span>';
+      if(hasMeetup(stage))h+='<span style="font-size:11px;margin-left:auto">\u{1F4CD}</span>';
+      h+='</div>';
+      h+='<div style="display:flex;gap:8px;align-items:center">';
+      h+='<input id="'+inputId+'" class="input" value="'+esc(spot)+'" placeholder="e.g. Left side near the sound booth" style="flex:1;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid '+(hasMeetup(stage)?stageColor+"44":V('bd2'))+'" onkeydown="if(event.key===\'Enter\')saveMeetupFromInput(\''+esc(stage).replace(/'/g,"\\'")+'\');">';
+      h+='<button id="meetup-save-'+stage.replace(/\s+/g,"-")+'" class="btn btn-primary" style="padding:6px 12px;font-size:11px;border-radius:8px" onclick="saveMeetupFromInput(\''+esc(stage).replace(/'/g,"\\'")+'\')">Save</button>';
       h+='</div></div>';
-    }
-
-    h+='</div>';
-  });
+    });
+    h+='</div></div>';
+  }
   h+='</div>';
-
   el.innerHTML=h;
 }
 
@@ -2253,6 +2350,30 @@ document.addEventListener("click", function(e){
   DB_URL = "https://edc-and-friends-2026-default-rtdb.firebaseio.com";
   showLogin();
 })();
+
+// ── PWA: Service Worker + Offline Cache ──
+if('serviceWorker' in navigator){
+  var swCode = 'var CACHE="edc-v1";var URLS=["/"];self.addEventListener("install",function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(URLS)}))});self.addEventListener("fetch",function(e){if(e.request.url.indexOf("firebase")>-1||e.request.url.indexOf(".json")>-1){e.respondWith(fetch(e.request));return}e.respondWith(caches.match(e.request).then(function(r){return r||fetch(e.request).then(function(res){return caches.open(CACHE).then(function(c){c.put(e.request,res.clone());return res})})}))});';
+  var blob = new Blob([swCode],{type:'application/javascript'});
+  var swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(function(){
+    // Blob SW not supported (Safari) — rely on apple-mobile-web-app-capable meta tag
+  });
+}
+
+// Cache Firebase data locally for offline viewing
+function cacheDataLocally(){
+  try{
+    localStorage.setItem("edc26-picks",JSON.stringify(allPicks));
+    localStorage.setItem("edc26-colors",JSON.stringify(userColors));
+    localStorage.setItem("edc26-emojis",JSON.stringify(userEmojis));
+    localStorage.setItem("edc26-meetups",JSON.stringify(meetupSpots));
+    localStorage.setItem("edc26-mapUrl",mapUrl);
+    localStorage.setItem("edc26-identity",identity||"");
+  }catch(e){}
+}
+// Cache after every sync
+var origSync = syncFromServer;
 </script>
 </body>
-</html>
+</html>q
