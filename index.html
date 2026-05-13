@@ -779,13 +779,10 @@ function switchDay(d,btn){
 }
 var lastToggleTime=0;
 
-async function doRename(){
-
 async function doDeleteUser(){
   if(!identity) return;
   if(!confirm("Delete "+identity+"? This removes all picks, color, emoji, and resolved conflicts. This cannot be undone.")) return;
   var name=identity;
-  // Remove all data from Firebase
   await fbPut("edc2026/"+encodeURIComponent(name), null);
   if(userColors[name]){ delete userColors[name]; await saveColors(); }
   if(userEmojis[name]){ await fbPut("edc2026_emojis/"+encodeURIComponent(name), null); delete userEmojis[name]; }
@@ -797,6 +794,8 @@ async function doDeleteUser(){
   if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
   switchUser();
 }
+
+async function doRename(){
   var input=document.getElementById("rename-input");
   if(!input) return;
   var newName=input.value.trim();
@@ -1478,9 +1477,9 @@ function renderSchedule(el){
 
   // Tier filter + all days toggle + export row
   h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-  h+='<select class="input" style="width:150px;flex:none" onchange="schedFilterTier(this.value)">';
+  h+='<select class="input" style="width:170px;flex:none" onchange="schedFilterTier(this.value)">';
   h+='<option value="All"'+(schedTier==="All"?" selected":"")+'>All tiers</option>';
-  h+='<option value="Top 2"'+(schedTier==="Top 2"?" selected":"")+'>Must See + 2nd</option>';
+  h+='<option value="Top 2"'+(schedTier==="Top 2"?" selected":"")+'>Must See + Interested</option>';
   h+='<option value="Must See"'+(schedTier==="Must See"?" selected":"")+'>Must See only</option>';
   h+='</select>';
   h+='<button onclick="schedAllDays=!schedAllDays;renderContent()" style="padding:4px 12px;border-radius:14px;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;';
