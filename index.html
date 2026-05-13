@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>EDC and Friends 2026</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   :root{--bg:#0a0a14;--bg2:rgba(255,255,255,0.03);--bg3:rgba(255,255,255,0.06);--bg4:rgba(255,255,255,0.04);--tx:#f0f0f0;--tx2:#888;--tx3:#666;--tx4:#555;--bd:rgba(255,255,255,0.06);--bd2:rgba(255,255,255,0.1);--bd3:rgba(255,255,255,0.08);--inbg:rgba(255,255,255,0.06);--hgrad:rgba(88,86,214,0.12);--tabActive:rgba(255,255,255,0.06);--popup:#1c1c2e}
   body.light{--bg:#f2f2f7;--bg2:#ffffff;--bg3:rgba(0,0,0,0.04);--bg4:rgba(0,0,0,0.03);--tx:#1c1c1e;--tx2:#6e6e73;--tx3:#8e8e93;--tx4:#aeaeb2;--bd:rgba(0,0,0,0.08);--bd2:rgba(0,0,0,0.12);--bd3:rgba(0,0,0,0.06);--inbg:rgba(0,0,0,0.04);--hgrad:rgba(88,86,214,0.06);--tabActive:rgba(0,0,0,0.04);--popup:#ffffff}
-  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;-webkit-tap-highlight-color:transparent;transition:background 0.3s,color 0.3s}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;min-height:100dvh;-webkit-tap-highlight-color:transparent;transition:background 0.3s,color 0.3s;overflow-y:scroll;-webkit-overflow-scrolling:touch}
   ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
-  .header{padding:16px 20px 0;background:linear-gradient(180deg,var(--hgrad) 0%,transparent 100%)}
+  .header{padding:20px 20px 0;background:linear-gradient(180deg,var(--hgrad) 0%,transparent 100%)}
   .header h1{font-size:20px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
   .subtitle{font-size:11px;color:var(--tx3);margin-top:2px}
   .friend-bar{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center}
@@ -22,7 +22,7 @@
   .day-bar{padding:10px 20px;display:flex;gap:6px;border-bottom:1px solid var(--bd)}
   .day-btn{padding:6px 16px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg4);color:var(--tx2);transition:all 0.15s;font-family:inherit}
   .day-btn.active{background:#5856d6;color:#fff}
-  .content{padding:20px;max-height:calc(100vh - 220px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .content{padding:20px;max-height:calc(100dvh - 220px);overflow-y:auto;-webkit-overflow-scrolling:touch}
   .input{background:var(--inbg);border:1px solid var(--bd2);border-radius:8px;padding:8px 12px;color:var(--tx);font-size:13px;outline:none;font-family:inherit}
   .input:focus{border-color:rgba(88,86,214,0.5)}
   .btn{padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;transition:all 0.15s}
@@ -35,7 +35,7 @@
   .stat-card{padding:14px 16px;border-radius:12px;background:var(--bg2);border:1px solid var(--bd)}
   .stat-value{font-size:28px;font-weight:800}.stat-label{font-size:11px;color:var(--tx2);margin-top:2px}
   .hidden{display:none!important}
-  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-wrap{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
   .login-box{width:100%;max-width:400px;padding:32px;border-radius:20px;background:var(--bg2);border:1px solid var(--bd3);text-align:center}
   .login-box h1{font-size:24px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
   .sync-dot{width:8px;height:8px;border-radius:4px;display:inline-block;margin-right:4px}
@@ -50,6 +50,7 @@
   .tl-sets{flex:1;position:relative;min-height:50px}
   .tl-block{position:absolute;top:4px;bottom:4px;border-radius:4px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;padding:2px 5px;transition:all 0.2s;touch-action:manipulation}
   .theme-toggle{width:36px;height:36px;border-radius:18px;border:1px solid var(--bd2);background:var(--bg3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;-webkit-tap-highlight-color:transparent}
+  body.light .theme-toggle{background:rgba(0,0,0,0.08);border-color:rgba(0,0,0,0.15)}
 
   /* Mobile optimizations */
   @media(max-width:600px){
@@ -59,7 +60,7 @@
     .tabs::-webkit-scrollbar{display:none}
     .tab-btn{padding:9px 12px;font-size:12px;white-space:nowrap}
     .day-bar{padding:8px 14px}
-    .content{padding:14px;max-height:calc(100vh - 200px)}
+    .content{padding:14px;max-height:calc(100dvh - 200px)}
     .tl-stage{width:80px;font-size:9px}
     .tl-header{margin-left:80px}
     .stat-card{padding:10px 12px}
@@ -91,6 +92,7 @@
   @keyframes badgePulse{0%,100%{box-shadow:0 0 3px var(--badge-glow)}50%{box-shadow:0 0 8px var(--badge-glow),0 0 14px var(--badge-glow)}}
   @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
   .discover-tab{background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff,#ff2d55)!important;background-size:300% 300%!important;animation:gradientShift 4s ease infinite;color:#fff!important;-webkit-text-fill-color:#fff!important;font-weight:800!important;border-radius:20px!important;padding:6px 16px!important}
+  @keyframes popularGlow{0%,100%{box-shadow:0 0 3px rgba(88,86,214,0.4),0 0 6px rgba(88,86,214,0.2)}50%{box-shadow:0 0 8px rgba(88,86,214,0.6),0 0 14px rgba(88,86,214,0.3)}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -153,7 +155,7 @@
 <!-- ======================== MAIN APP ======================== -->
 <div id="main-app" class="hidden">
   <div class="header">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
       <div>
         <h1>EDC and Friends - 2026</h1>
         <div class="subtitle" id="header-sub"></div>
@@ -764,7 +766,7 @@ function switchView(v,btn){
     content.style.maxHeight="none";
     content.style.overflow="visible";
   } else {
-    content.style.maxHeight="calc(100vh - 220px)";
+    content.style.maxHeight="calc(100dvh - 220px)";
     content.style.overflowY="auto";
   }
   renderContent();
@@ -778,6 +780,23 @@ function switchDay(d,btn){
 var lastToggleTime=0;
 
 async function doRename(){
+
+async function doDeleteUser(){
+  if(!identity) return;
+  if(!confirm("Delete "+identity+"? This removes all picks, color, emoji, and resolved conflicts. This cannot be undone.")) return;
+  var name=identity;
+  // Remove all data from Firebase
+  await fbPut("edc2026/"+encodeURIComponent(name), null);
+  if(userColors[name]){ delete userColors[name]; await saveColors(); }
+  if(userEmojis[name]){ await fbPut("edc2026_emojis/"+encodeURIComponent(name), null); delete userEmojis[name]; }
+  await fbPut("edc2026_skips/"+encodeURIComponent(name), null);
+  await fbPut("edc2026_resolved/"+encodeURIComponent(name), null);
+  await fbPut("edc2026_online/"+encodeURIComponent(name), null);
+  delete allPicks[name];
+  identity=null;
+  if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
+  switchUser();
+}
   var input=document.getElementById("rename-input");
   if(!input) return;
   var newName=input.value.trim();
@@ -877,6 +896,7 @@ function renderColorPicker(){
   h+='<span style="font-size:11px;color:'+V('tx2')+'">Name:</span>';
   h+='<input id="rename-input" class="input" value="'+esc(identity)+'" style="flex:1;padding:5px 10px;font-size:12px;border-radius:10px;min-width:0">';
   h+='<button onclick="doRename()" class="btn btn-primary" style="padding:5px 12px;font-size:11px;border-radius:10px">Save</button>';
+  h+='<button onclick="doDeleteUser()" style="padding:5px 10px;font-size:11px;border-radius:10px;border:1px solid rgba(255,59,48,0.3);background:rgba(255,59,48,0.08);color:#ff3b30;cursor:pointer;font-family:inherit;font-weight:600" title="Delete this user">Delete</button>';
   h+='</div>';
 
   // Color picker
@@ -968,7 +988,9 @@ function renderPickView(el){
       var ow=friends().filter(function(f){return f!==identity&&(allPicks[f]||{})[set.a];});
       var bg=mt?TC[mt].bg:"'+V('bg2')+'";
       var bdr=mt?"1px solid "+TC[mt].c+"33":"1px solid '+V('bg3')+'";
-      h+='<div class="set-card" style="background:'+bg+';border:'+bdr+'">';
+      var isPopular = ow.length >= 2;
+      var glowStyle = isPopular ? ";animation:popularGlow 2s ease-in-out infinite;border-color:rgba(88,86,214,0.4)" : "";
+      h+='<div class="set-card" style="background:'+bg+';border:'+bdr+glowStyle+'">';
       h+='<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:'+V('tx')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(set.a)+'</div>';
       h+='<div style="font-size:11px;color:'+V('tx2')+';margin-top:2px">'+fmt(toMin(set.t0))+' \u2013 '+fmt(toMin(set.t1))+'</div></div>';
       if(ow.length>0){h+='<div style="display:flex;margin-right:4px">';ow.slice(0,5).forEach(function(f){h+=avatarHtml(f,22,10);});h+='</div>';}
@@ -1535,11 +1557,19 @@ function renderSchedule(el){
       h+='</div>';
     }
 
-    // Group blocks into segments: singles and conflict clusters
+    // Group blocks into segments with overlap rules
+    // Max cluster span: 90 minutes
     var segments = [];
     blocks.forEach(function(block) {
       var placed = false;
       for (var s = 0; s < segments.length; s++) {
+        var segEarliest = segments[s].reduce(function(m,b){return b.start<m?b.start:m;},Infinity);
+        var segLatest = segments[s].reduce(function(m,b){return b.end>m?b.end:m;},0);
+        // Check if adding this block would exceed 90 min span
+        var newEarliest = Math.min(segEarliest, block.start);
+        var newLatest = Math.max(segLatest, block.end);
+        if(newLatest - newEarliest > 90) continue;
+
         var overlaps = segments[s].some(function(existing) {
           return block.start < existing.end && existing.start < block.end;
         });
@@ -1548,27 +1578,31 @@ function renderSchedule(el){
       if (!placed) segments.push([block]);
     });
 
+    // Classify overlap type for each segment pair
+    function overlapPct(a,b){
+      var overlap = Math.max(0, Math.min(a.end,b.end) - Math.max(a.start,b.start));
+      var shorter = Math.min(a.end-a.start, b.end-b.start);
+      return shorter > 0 ? overlap/shorter : 0;
+    }
+
+    // Check if a conflict key has been resolved as split
+    function isSplitResolved(seg){
+      var key = seg.map(function(b){return b.set.a;}).sort().join("|||");
+      return resolvedConflicts[key] === "split";
+    }
+
     // Render segments as vertical timeline
     segments.forEach(function(seg) {
-      var isConflict = seg.length > 1;
-      var earliest = seg.reduce(function(m,b){return b.start<m?b.start:m;},Infinity);
-      var latest = seg.reduce(function(m,b){return b.end>m?b.end:m;},0);
-
-      h+='<div style="display:flex;gap:8px;margin-bottom:6px">';
-
-      // Time gutter
-      h+='<div style="width:52px;flex-shrink:0;padding-top:7px">';
-      h+='<div style="font-size:10px;font-weight:700;color:'+V('tx')+';font-variant-numeric:tabular-nums;line-height:1.2">'+fmt(earliest)+'</div>';
-      h+='<div style="font-size:9px;color:'+V('tx3')+';margin-top:1px">'+fmt(latest)+'</div>';
-      h+='</div>';
-
-      // Card area
-      if(!isConflict){
-        // Single card - full width
+      if(seg.length <= 1){
+        // Single card
         var block=seg[0], set=block.set;
         var stageColor=SC[set.s]||"#888";
         var groupSize=block.attendees.length;
         var isGroupMoment=groupSize>=2;
+        h+='<div style="display:flex;gap:8px;margin-bottom:6px">';
+        h+='<div style="width:52px;flex-shrink:0;padding-top:7px">';
+        h+='<div style="font-size:10px;font-weight:700;color:'+V('tx')+';font-variant-numeric:tabular-nums;line-height:1.2">'+fmt(block.start)+'</div>';
+        h+='</div>';
         h+='<div style="flex:1;min-width:0;background:'+V('bg2')+';border:1px solid '+V('bg3')+';border-radius:8px;padding:7px 10px">';
         h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">';
         h+='<div style="width:2px;height:10px;border-radius:1px;background:'+stageColor+'"></div>';
@@ -1580,40 +1614,107 @@ function renderSchedule(el){
         h+='</div>';
         h+='<div style="font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:4px">'+esc(set.a)+'</div>';
         h+=renderSchedAttendees(block,filterFriends);
-        h+='</div>';
-
+        h+='</div></div>';
       } else {
-        // Conflict - split with OR
-        h+='<div style="flex:1;min-width:0;display:flex;gap:0;align-items:stretch">';
-        seg.forEach(function(block,idx){
-          var set=block.set;
-          var stageColor=SC[set.s]||"#888";
-          var groupSize=block.attendees.length;
-
-          // OR divider between cards
-          if(idx > 0){
-            h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:28px;flex-shrink:0">';
-            h+='<div style="flex:1;width:1px;background:rgba(255,59,48,0.25)"></div>';
-            h+='<div style="font-size:8px;font-weight:800;color:#ff3b30;padding:4px 0;letter-spacing:0.5px">OR</div>';
-            h+='<div style="flex:1;width:1px;background:rgba(255,59,48,0.25)"></div>';
-            h+='</div>';
+        // Multi-set segment - classify overlap type
+        var maxPct = 0;
+        for(var oi=0;oi<seg.length;oi++){
+          for(var oj=oi+1;oj<seg.length;oj++){
+            var p = overlapPct(seg[oi],seg[oj]);
+            if(p > maxPct) maxPct = p;
           }
+        }
 
-          h+='<div style="flex:1;min-width:0;background:rgba(255,59,48,0.04);border:1px solid rgba(255,59,48,0.2);border-radius:8px;padding:7px 8px">';
-          h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">';
-          h+='<div style="width:2px;height:10px;border-radius:1px;background:'+stageColor+'"></div>';
-          h+='<span style="font-size:8px;color:'+stageColor+';font-weight:600">'+esc(set.s)+'</span>';
-          h+=pinHtml(set.s);
+        var splitResolved = isSplitResolved(seg);
+
+        // <25% overlap: not a real conflict, show as separate rows
+        if(maxPct < 0.25){
+          seg.forEach(function(block){
+            var set=block.set;
+            var stageColor=SC[set.s]||"#888";
+            h+='<div style="display:flex;gap:8px;margin-bottom:6px">';
+            h+='<div style="width:52px;flex-shrink:0;padding-top:7px">';
+            h+='<div style="font-size:10px;font-weight:700;color:'+V('tx')+';font-variant-numeric:tabular-nums;line-height:1.2">'+fmt(block.start)+'</div>';
+            h+='</div>';
+            h+='<div style="flex:1;min-width:0;background:'+V('bg2')+';border:1px solid '+V('bg3')+';border-radius:8px;padding:7px 10px">';
+            h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">';
+            h+='<div style="width:2px;height:10px;border-radius:1px;background:'+stageColor+'"></div>';
+            h+='<span style="font-size:9px;color:'+stageColor+';font-weight:600">'+esc(set.s)+'</span>';
+            h+=pinHtml(set.s);
+            h+='</div>';
+            h+='<div style="font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:4px">'+esc(set.a)+'</div>';
+            h+=renderSchedAttendees(block,filterFriends);
+            h+='</div></div>';
+          });
+        }
+        // 25-60% overlap: splittable hint
+        else if(maxPct < 0.6 && !splitResolved){
+          var earliest=seg.reduce(function(m,b){return b.start<m?b.start:m;},Infinity);
+          h+='<div style="display:flex;gap:8px;margin-bottom:6px">';
+          h+='<div style="width:52px;flex-shrink:0;padding-top:7px">';
+          h+='<div style="font-size:10px;font-weight:700;color:'+V('tx')+';font-variant-numeric:tabular-nums;line-height:1.2">'+fmt(earliest)+'</div>';
           h+='</div>';
-          h+='<div style="font-size:10px;font-weight:600;color:'+V('tx2')+';margin-bottom:1px">'+fmt(block.start)+' \u2013 '+fmt(block.end)+'</div>';
-          h+='<div style="font-size:12px;font-weight:700;color:'+V('tx')+';margin-bottom:3px">'+esc(set.a)+'</div>';
-          h+=renderSchedAttendees(block,filterFriends);
+          h+='<div style="flex:1;min-width:0;display:flex;gap:0;align-items:stretch">';
+          seg.forEach(function(block,idx){
+            var set=block.set;
+            var stageColor=SC[set.s]||"#888";
+            if(idx > 0){
+              h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:24px;flex-shrink:0">';
+              h+='<div style="flex:1;width:1px;background:rgba(255,214,10,0.3)"></div>';
+              h+='<div style="font-size:7px;font-weight:800;color:#ffd60a;padding:3px 0">\u00BD</div>';
+              h+='<div style="flex:1;width:1px;background:rgba(255,214,10,0.3)"></div>';
+              h+='</div>';
+            }
+            h+='<div style="flex:1;min-width:0;background:rgba(255,214,10,0.04);border:1px solid rgba(255,214,10,0.2);border-radius:8px;padding:7px 8px">';
+            h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">';
+            h+='<div style="width:2px;height:10px;border-radius:1px;background:'+stageColor+'"></div>';
+            h+='<span style="font-size:8px;color:'+stageColor+';font-weight:600">'+esc(set.s)+'</span>';
+            h+='</div>';
+            h+='<div style="font-size:10px;color:'+V('tx2')+';margin-bottom:1px">'+fmt(block.start)+' \u2013 '+fmt(block.end)+'</div>';
+            h+='<div style="font-size:12px;font-weight:700;color:'+V('tx')+';margin-bottom:3px">'+esc(set.a)+'</div>';
+            h+=renderSchedAttendees(block,filterFriends);
+            h+='</div>';
+          });
+          h+='</div></div>';
+        }
+        // >60% overlap OR resolved as split: show as OR or AND
+        else {
+          var earliest=seg.reduce(function(m,b){return b.start<m?b.start:m;},Infinity);
+          var divColor = splitResolved ? "rgba(48,209,88,0.3)" : "rgba(255,59,48,0.25)";
+          var divText = splitResolved ? "AND" : "OR";
+          var divTextColor = splitResolved ? "#30d158" : "#ff3b30";
+          var cardBg = splitResolved ? "rgba(48,209,88,0.04)" : "rgba(255,59,48,0.04)";
+          var cardBdr = splitResolved ? "rgba(48,209,88,0.2)" : "rgba(255,59,48,0.2)";
+
+          h+='<div style="display:flex;gap:8px;margin-bottom:6px">';
+          h+='<div style="width:52px;flex-shrink:0;padding-top:7px">';
+          h+='<div style="font-size:10px;font-weight:700;color:'+V('tx')+';font-variant-numeric:tabular-nums;line-height:1.2">'+fmt(earliest)+'</div>';
           h+='</div>';
-        });
-        h+='</div>';
+          h+='<div style="flex:1;min-width:0;display:flex;gap:0;align-items:stretch">';
+          seg.forEach(function(block,idx){
+            var set=block.set;
+            var stageColor=SC[set.s]||"#888";
+            if(idx > 0){
+              h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:28px;flex-shrink:0">';
+              h+='<div style="flex:1;width:1px;background:'+divColor+'"></div>';
+              h+='<div style="font-size:8px;font-weight:800;color:'+divTextColor+';padding:4px 0;letter-spacing:0.5px">'+divText+'</div>';
+              h+='<div style="flex:1;width:1px;background:'+divColor+'"></div>';
+              h+='</div>';
+            }
+            h+='<div style="flex:1;min-width:0;background:'+cardBg+';border:1px solid '+cardBdr+';border-radius:8px;padding:7px 8px">';
+            h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">';
+            h+='<div style="width:2px;height:10px;border-radius:1px;background:'+stageColor+'"></div>';
+            h+='<span style="font-size:8px;color:'+stageColor+';font-weight:600">'+esc(set.s)+'</span>';
+            h+=pinHtml(set.s);
+            h+='</div>';
+            h+='<div style="font-size:10px;font-weight:600;color:'+V('tx2')+';margin-bottom:1px">'+fmt(block.start)+' \u2013 '+fmt(block.end)+'</div>';
+            h+='<div style="font-size:12px;font-weight:700;color:'+V('tx')+';margin-bottom:3px">'+esc(set.a)+'</div>';
+            h+=renderSchedAttendees(block,filterFriends);
+            h+='</div>';
+          });
+          h+='</div></div>';
+        }
       }
-
-      h+='</div>'; // close row
     });
   }); // end daysToShow loop
 
