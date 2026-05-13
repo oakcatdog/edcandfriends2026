@@ -87,6 +87,10 @@
   .discover-card.exit-left{animation:slideLeft 0.25s ease forwards}
   .discover-card.exit-right{animation:slideRight 0.25s ease forwards}
   .discover-card.exit-up{animation:slideUp 0.25s ease forwards}
+  @keyframes onlineGlow{0%,100%{box-shadow:0 0 4px var(--glow-color),0 0 8px var(--glow-color)}50%{box-shadow:0 0 8px var(--glow-color),0 0 16px var(--glow-color),0 0 24px var(--glow-color)}}
+  @keyframes badgePulse{0%,100%{box-shadow:0 0 3px var(--badge-glow)}50%{box-shadow:0 0 8px var(--badge-glow),0 0 14px var(--badge-glow)}}
+  @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .discover-tab{background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff,#ff2d55)!important;background-size:300% 300%!important;animation:gradientShift 4s ease infinite;color:#fff!important;-webkit-text-fill-color:#fff!important;font-weight:800!important;border-radius:20px!important;padding:6px 16px!important}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -151,7 +155,7 @@
   <div class="header">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div>
-        <h1>EDC and Friends</h1>
+        <h1>EDC and Friends - 2026</h1>
         <div class="subtitle" id="header-sub"></div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -165,8 +169,8 @@
     </div>
     <div class="friend-bar" id="friend-bar"></div>
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchView('pick',this)">Pick Artists</button>
-      <button class="tab-btn" onclick="switchView('discover',this)">Discover</button>
+      <button class="tab-btn active discover-tab" onclick="switchView('discover',this)">Discover</button>
+      <button class="tab-btn" onclick="switchView('pick',this)">Pick Artists</button>
       <button class="tab-btn" onclick="switchView('timeline',this)">Timeline</button>
       <button class="tab-btn" onclick="switchView('schedule',this)">Schedule</button>
       <button class="tab-btn" onclick="switchView('meetups',this)">Meetups</button>
@@ -218,6 +222,53 @@ var lastLocalWrite = 0; // timestamp of last local pick change
 var resolvedConflicts = {}; // { "artistA|||artistB": "chosen:artistA" or "deferred" }
 var discoverIndex = 0; // current card index in discover mode
 var discoverAnimating = false;
+var skippedArtists = {}; // { "artist name": true }
+var onlineStatus = {}; // { "name": timestamp }
+var heartbeatTimer = null;
+
+async function loadSkips(){
+  if(!identity) return;
+  try{
+    var r=await fbGet("edc2026_skips/"+encodeURIComponent(identity));
+    if(r && typeof r==="string"){ try{skippedArtists=JSON.parse(r);}catch(e){skippedArtists={};} }
+    else if(r && typeof r==="object") skippedArtists=r;
+  }catch(e){}
+}
+async function saveSkips(){
+  if(!identity) return;
+  try{ await fbPut("edc2026_skips/"+encodeURIComponent(identity), JSON.stringify(skippedArtists)); }catch(e){}
+}
+
+// Online presence - heartbeat every 20s
+function sendHeartbeat(){
+  if(!identity) return;
+  fbPut("edc2026_online/"+encodeURIComponent(identity), Date.now());
+}
+async function loadOnlineStatus(){
+  try{
+    var r=await fbGet("edc2026_online");
+    if(r && typeof r==="object") onlineStatus=r;
+  }catch(e){}
+}
+function isOnline(name){
+  var ts=onlineStatus[name];
+  if(!ts) return false;
+  return (Date.now()-ts) < 45000; // 45 second threshold
+}
+function startHeartbeat(){
+  sendHeartbeat();
+  if(heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer=setInterval(sendHeartbeat, 20000);
+  // Pause when tab is hidden
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState==="hidden"){
+      if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
+    } else {
+      sendHeartbeat();
+      if(!heartbeatTimer) heartbeatTimer=setInterval(sendHeartbeat, 20000);
+    }
+  });
+}
 
 function V(name){
   var s=getComputedStyle(document.body);
@@ -377,13 +428,17 @@ function conflictKey(a,b){ return [a,b].sort().join("|||"); }
 function resolveConflict(key, decision){
   resolvedConflicts[key]=decision;
   saveResolved();
-  // If choosing one side, remove the other from picks
+  // If choosing one side, remove all others from picks
   if(decision.indexOf("chosen:")===0){
     var chosen=decision.substring(7);
     var parts=key.split("|||");
-    var loser=parts[0]===chosen?parts[1]:parts[0];
     var fp=allPicks[identity]||{};
-    if(fp[loser]){ delete fp[loser]; allPicks[identity]=fp; lastLocalWrite=Date.now(); syncMyPicks(); }
+    parts.forEach(function(artist){
+      if(artist!==chosen && fp[artist]){ delete fp[artist]; }
+    });
+    allPicks[identity]=fp;
+    lastLocalWrite=Date.now();
+    syncMyPicks();
   }
   renderTodos(document.getElementById("content"));
   updateTodoBadge();
@@ -402,26 +457,62 @@ function getTodoData(){
   var fp=allPicks[identity]||{};
   var fr=friends();
 
-  // My conflicts
-  var myPicks=SETS.filter(function(s){return fp[s.a];});
-  var conflicts=[];
-  for(var i=0;i<myPicks.length;i++){
-    for(var j=i+1;j<myPicks.length;j++){
-      var a=myPicks[i],b=myPicks[j];
-      if(a.d!==b.d) continue;
-      if(toMin(a.t0)<toMin(b.t1)&&toMin(b.t0)<toMin(a.t1)){
-        var key=conflictKey(a.a,b.a);
-        if(!resolvedConflicts[key]){
-          conflicts.push({a:a,b:b,key:key});
-        }
-      }
+  // My picks excluding Maybe (tier 3) for conflict detection
+  var myPicksForConflict=SETS.filter(function(s){
+    var t=fp[s.a];
+    return t && t<=2; // Only Must See (1) and Interested (2)
+  });
+
+  // Group overlapping sets into conflict clusters
+  var clusters=[];
+  myPicksForConflict.forEach(function(set){
+    var sM=toMin(set.t0), eM=toMin(set.t1);
+    var placed=false;
+    for(var c=0;c<clusters.length;c++){
+      var overlaps=clusters[c].some(function(existing){
+        return set.d===existing.d && sM<toMin(existing.t1) && toMin(existing.t0)<eM;
+      });
+      if(overlaps){ clusters[c].push(set); placed=true; break; }
     }
-  }
+    if(!placed) clusters.push([set]);
+  });
+
+  // Only keep clusters with 2+ sets (actual conflicts)
+  var conflicts=[];
+  clusters.forEach(function(cluster){
+    if(cluster.length<2) return;
+    var key=cluster.map(function(s){return s.a;}).sort().join("|||");
+    if(resolvedConflicts[key]) return; // already resolved
+
+    // Classify: all Must See = critical, otherwise worth deciding
+    var allMustSee=cluster.every(function(s){return fp[s.a]===1;});
+    var priority=allMustSee?"critical":"worth";
+
+    // Add crew info per set
+    var cards=cluster.map(function(set){
+      var who=[];
+      fr.forEach(function(f){
+        var tier=(allPicks[f]||{})[set.a];
+        if(tier) who.push({name:f,tier:tier});
+      });
+      return {set:set, tier:fp[set.a], who:who};
+    });
+
+    conflicts.push({key:key, cards:cards, priority:priority});
+  });
+
+  // Sort: critical first, then worth deciding
+  conflicts.sort(function(a,b){
+    if(a.priority==="critical" && b.priority!=="critical") return -1;
+    if(b.priority==="critical" && a.priority!=="critical") return 1;
+    return 0;
+  });
 
   // Popular sets I haven't rated
   var unrated=[];
   SETS.forEach(function(set){
     if(fp[set.a]) return;
+    if(skippedArtists[set.a]) return;
     var count=0;
     fr.forEach(function(f){ if((allPicks[f]||{})[set.a]) count++; });
     if(count>=2) unrated.push({set:set,count:count});
@@ -429,6 +520,7 @@ function getTodoData(){
   unrated.sort(function(a,b){return b.count-a.count;});
 
   // Completeness
+  var myPicks=SETS.filter(function(s){return fp[s.a];});
   var dayCounts={Friday:0,Saturday:0,Sunday:0};
   myPicks.forEach(function(s){ dayCounts[s.d]=(dayCounts[s.d]||0)+1; });
 
@@ -541,6 +633,10 @@ async function syncFromServer(){
         if(identity) renderApp();
       }
     }
+    var online = await fbGet("edc2026_online");
+    if(online && typeof online === "object"){
+      onlineStatus = online;
+    }
   } catch(e){}
 }
 
@@ -636,6 +732,8 @@ function joinAs(name){
   autoAssignColor(name);
   syncMyPicks();
   loadResolved();
+  loadSkips();
+  startHeartbeat();
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("main-app").classList.remove("hidden");
   renderApp();
@@ -734,15 +832,22 @@ function updateFriendBar(){
   friends().forEach(function(f){
     var c=Object.keys(allPicks[f]||{}).length;
     var emoji=getEmoji(f);
+    var online=isOnline(f);
     var el=document.createElement("div");el.className="chip";
     el.style.background=f===identity?fc(f):fc(f)+"22";
     el.style.color=f===identity?"#000":fc(f);
+    if(online){
+      el.style.setProperty("--glow-color",fc(f)+"88");
+      el.style.animation="onlineGlow 2s ease-in-out infinite";
+      el.style.border="1px solid "+fc(f)+"66";
+    }
     if(f===identity){
       el.style.cursor="pointer";
       el.onclick=function(){ showColorPicker=!showColorPicker; renderColorPicker(); };
     }
     var label = emoji ? emoji+" " : "";
-    el.innerHTML=label+esc(f)+(f===identity?" \u25CF":"")+'<span style="opacity:0.6;margin-left:2px">('+c+')</span>';
+    var onlineDot = online ? '<span style="display:inline-block;width:6px;height:6px;border-radius:3px;background:#30d158;margin-right:3px"></span>' : '';
+    el.innerHTML=onlineDot+label+esc(f)+(f===identity?" \u25CF":"")+'<span style="opacity:0.6;margin-left:2px">('+c+')</span>';
     bar.appendChild(el);
   });
 
@@ -892,17 +997,18 @@ function getDiscoverQueue(){
     return {set:set, popularity:count, who:who, rated:!!fp[set.a], myTier:fp[set.a]||0};
   });
 
-  // Split into popular (1+ friend) and rest
-  var popular = queue.filter(function(q){return q.popularity>0 && !q.rated;})
+  // Split into popular (1+ friend) and rest, excluding rated and skipped
+  var popular = queue.filter(function(q){return q.popularity>0 && !q.rated && !skippedArtists[q.set.a];})
     .sort(function(a,b){return b.popularity-a.popularity || toMin(a.set.t0)-toMin(b.set.t0);});
-  var rest = queue.filter(function(q){return q.popularity===0 && !q.rated;})
+  var rest = queue.filter(function(q){return q.popularity===0 && !q.rated && !skippedArtists[q.set.a];})
     .sort(function(a,b){
       var dayOrder={Friday:0,Saturday:1,Sunday:2};
       return (dayOrder[a.set.d]||0)-(dayOrder[b.set.d]||0) || toMin(a.set.t0)-toMin(b.set.t0);
     });
 
   var totalRated = queue.filter(function(q){return q.rated;}).length;
-  return {popular:popular, rest:rest, totalRated:totalRated, total:queue.length};
+  var totalSkipped = Object.keys(skippedArtists).length;
+  return {popular:popular, rest:rest, totalRated:totalRated, totalSkipped:totalSkipped, totalSeen:totalRated+totalSkipped, total:queue.length};
 }
 
 function discoverRate(tier){
@@ -911,10 +1017,9 @@ function discoverRate(tier){
   var combined = q.popular.concat(q.rest);
   if(discoverIndex >= combined.length) return;
 
-  var item = combined[discoverIndex];
+  var item = combined[0];
   discoverAnimating = true;
 
-  // Animation direction based on tier
   var card = document.getElementById("discover-card");
   if(card){
     var cls = tier===1?"exit-right":tier===0?"exit-left":"exit-up";
@@ -928,8 +1033,13 @@ function discoverRate(tier){
       allPicks[identity] = fp;
       lastLocalWrite = Date.now();
       syncMyPicks();
+    } else {
+      // Skip - remember so it doesn't come back
+      skippedArtists[item.set.a] = true;
+      saveSkips();
     }
-    discoverIndex++;
+    // Don't increment index since the queue shrinks by removing rated/skipped
+    discoverIndex = 0;
     discoverAnimating = false;
     renderDiscover(document.getElementById("content"));
     updateTodoBadge();
@@ -944,17 +1054,28 @@ function renderDiscover(el){
   var combined = q.popular.concat(q.rest);
   var popCount = q.popular.length;
 
-  // Reset index if past the end
-  if(discoverIndex >= combined.length) discoverIndex = combined.length;
+  var h = tabTip('\u{1F0CF} Discover artists one by one. Popular picks from your crew come first. Rate them to build your schedule.');
 
-  var h = tabTip('\u{1F0CF} Swipe through artists. Popular picks from your crew come first. Rate them to build your schedule.');
+  // All done state
+  if(combined.length === 0){
+    h+='<div style="text-align:center;padding:40px 20px">';
+    h+='<div style="font-size:48px;margin-bottom:12px">\u{1F389}</div>';
+    h+='<div style="font-size:18px;font-weight:700;color:'+V('tx')+';margin-bottom:6px">All caught up!</div>';
+    h+='<div style="font-size:13px;color:'+V('tx2')+';margin-bottom:16px">You\u2019ve seen all '+q.total+' artists. Check your Schedule or browse Pick Artists to make changes.</div>';
+    h+='<button onclick="skippedArtists={};saveSkips();renderDiscover(document.getElementById(\'content\'))" class="btn btn-primary" style="padding:10px 24px;font-size:13px;border-radius:12px">Start Over (clear skips)</button>';
+    h+='</div>';
+    el.innerHTML=h;
+    return;
+  }
+
+  var item = combined[0];
 
   // Progress bar
-  var rated = q.totalRated;
-  var pct = q.total > 0 ? Math.round((rated/q.total)*100) : 0;
+  var seen = q.totalSeen;
+  var pct = q.total > 0 ? Math.round((seen/q.total)*100) : 0;
   h+='<div style="margin-bottom:16px">';
   h+='<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
-  h+='<span style="font-size:11px;color:'+V('tx2')+'">'+rated+' of '+q.total+' rated</span>';
+  h+='<span style="font-size:11px;color:'+V('tx2')+'">'+q.totalRated+' rated \u00B7 '+q.totalSkipped+' skipped</span>';
   h+='<span style="font-size:11px;color:'+V('tx2')+'">'+pct+'%</span>';
   h+='</div>';
   h+='<div style="height:4px;border-radius:2px;background:'+V('bg3')+'">';
@@ -973,12 +1094,12 @@ function renderDiscover(el){
     return;
   }
 
-  var item = combined[discoverIndex];
+  var item = combined[0];
   var set = item.set;
   var sc = SC[set.s]||"#888";
 
-  // Divider when transitioning from popular to rest
-  if(discoverIndex === popCount && popCount > 0){
+  // Divider when we've run out of popular artists
+  if(popCount === 0 && q.rest.length > 0 && q.popular.length === 0 && q.totalRated > 0){
     h+='<div style="text-align:center;padding:16px;margin-bottom:12px;border-radius:10px;background:rgba(255,149,0,0.08);border:1px solid rgba(255,149,0,0.2)">';
     h+='<div style="font-size:12px;color:#ff9500;font-weight:600">\u{1F44D} You\u2019ve rated all the popular picks!</div>';
     h+='<div style="font-size:11px;color:'+V('tx3')+';margin-top:4px">The rest haven\u2019t been picked by your crew yet. Keep going or switch to Pick Artists.</div>';
@@ -1038,26 +1159,44 @@ function renderDiscover(el){
   h+='</div>'; // card container
   h+='</div>'; // discover-card wrapper
 
-  // Rating buttons
-  h+='<div style="display:flex;gap:8px;justify-content:center;margin-top:16px;max-width:360px;margin-left:auto;margin-right:auto">';
+  // Rating section
+  h+='<div style="max-width:360px;margin:0 auto;margin-top:20px">';
 
-  // Skip (left)
-  h+='<button onclick="discoverSkip()" style="width:48px;height:48px;border-radius:24px;border:2px solid '+V('bd2')+';background:'+V('bg2')+';cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;touch-action:manipulation" title="Skip">\u27A1\uFE0F</button>';
+  // Label
+  h+='<div style="text-align:center;font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:12px">What\u2019s your vibe?</div>';
 
-  // Maybe
-  h+='<button onclick="discoverRate(3)" style="flex:1;height:48px;border-radius:24px;border:none;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;background:'+TC[3].c+'22;color:'+TC[3].c+';display:flex;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;touch-action:manipulation" title="Maybe">\u{1F914} Maybe</button>';
-
-  // Interested
-  h+='<button onclick="discoverRate(2)" style="flex:1;height:48px;border-radius:24px;border:none;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;background:'+TC[2].c+'22;color:'+TC[2].c+';display:flex;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;touch-action:manipulation" title="Interested">\u{1F440} Interested</button>';
+  // Three main rating buttons - stacked emoji + label
+  h+='<div style="display:flex;gap:10px;justify-content:center">';
 
   // Must See
-  h+='<button onclick="discoverRate(1)" style="flex:1;height:48px;border-radius:24px;border:none;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;background:'+TC[1].c+'22;color:'+TC[1].c+';display:flex;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;touch-action:manipulation" title="Must See">\u{1F525} Must See</button>';
+  h+='<button onclick="discoverRate(1)" style="flex:1;height:64px;border-radius:16px;border:none;cursor:pointer;font-family:inherit;background:'+TC[1].c+'18;border:2px solid '+TC[1].c+'44;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;touch-action:manipulation">';
+  h+='<span style="font-size:22px">\u{1F525}</span>';
+  h+='<span style="font-size:11px;font-weight:700;color:'+TC[1].c+'">Must See</span>';
+  h+='</button>';
+
+  // Interested
+  h+='<button onclick="discoverRate(2)" style="flex:1;height:64px;border-radius:16px;border:none;cursor:pointer;font-family:inherit;background:'+TC[2].c+'18;border:2px solid '+TC[2].c+'44;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;touch-action:manipulation">';
+  h+='<span style="font-size:22px">\u{1F440}</span>';
+  h+='<span style="font-size:11px;font-weight:700;color:'+TC[2].c+'">Interested</span>';
+  h+='</button>';
+
+  // Maybe
+  h+='<button onclick="discoverRate(3)" style="flex:1;height:64px;border-radius:16px;border:none;cursor:pointer;font-family:inherit;background:'+TC[3].c+'18;border:2px solid '+TC[3].c+'44;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;touch-action:manipulation">';
+  h+='<span style="font-size:22px">\u{1F914}</span>';
+  h+='<span style="font-size:11px;font-weight:700;color:'+TC[3].c+'">Maybe</span>';
+  h+='</button>';
 
   h+='</div>';
 
-  // Cards remaining
-  var remaining = combined.length - discoverIndex;
-  h+='<div style="text-align:center;margin-top:12px;font-size:11px;color:'+V('tx3')+'">'+remaining+' remaining</div>';
+  // Skip - separated below, muted
+  h+='<div style="text-align:center;margin-top:10px">';
+  h+='<button onclick="discoverSkip()" style="padding:8px 28px;border-radius:12px;border:1px solid '+V('bd2')+';background:transparent;cursor:pointer;font-size:12px;color:'+V('tx3')+';font-family:inherit;transition:all 0.15s;touch-action:manipulation">Skip \u2192</button>';
+  h+='</div>';
+
+  // Hint
+  h+='<div style="text-align:center;margin-top:10px;font-size:10px;color:'+V('tx4')+'">Tap to rate \u00B7 '+combined.length+' artists remaining</div>';
+
+  h+='</div>';
 
   el.innerHTML=h;
 }
@@ -1125,6 +1264,40 @@ function renderTimeline(el){
     h+='<div style="position:absolute;top:0;left:'+x+'px;width:0;height:'+gridHeight+'px;border-left:1px solid '+V('bd')+'"></div>';
   });
 
+  // Compute min/max popularity for temperature scale
+  var allHeats = [];
+  ds.forEach(function(set){
+    var c = friends().filter(function(f){ return (allPicks[f]||{})[set.a]; }).length;
+    if(c > 0) allHeats.push(c);
+  });
+  var minHeat = allHeats.length > 0 ? Math.min.apply(null,allHeats) : 0;
+  var maxHeat = allHeats.length > 0 ? Math.max.apply(null,allHeats) : 1;
+
+  // Curated color waypoints for smooth temperature scale
+  var heatWaypoints = [
+    [0,212,255],   // cyan
+    [0,229,160],   // teal
+    [48,209,88],   // green
+    [140,209,88],  // lime
+    [255,214,10],  // yellow
+    [255,149,0],   // orange
+    [255,94,58],   // red-orange
+    [255,45,85]    // hot red
+  ];
+  function heatColor(h){
+    if(maxHeat <= minHeat) return "#5856d6";
+    var t = (h - minHeat) / (maxHeat - minHeat); // 0 to 1
+    var pos = t * (heatWaypoints.length - 1);
+    var idx = Math.floor(pos);
+    var frac = pos - idx;
+    if(idx >= heatWaypoints.length - 1) return "rgb("+heatWaypoints[heatWaypoints.length-1].join(",")+")";
+    var a = heatWaypoints[idx], b = heatWaypoints[idx+1];
+    var r = Math.round(a[0]+(b[0]-a[0])*frac);
+    var g = Math.round(a[1]+(b[1]-a[1])*frac);
+    var bl = Math.round(a[2]+(b[2]-a[2])*frac);
+    return "rgb("+r+","+g+","+bl+")";
+  }
+
   // Set blocks
   stf.forEach(function(stage, colIdx){
     var sets = ds.filter(function(s){ return s.s === stage; });
@@ -1147,9 +1320,12 @@ function renderTimeline(el){
       h+='onclick="togglePick(\''+set.a.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\','+nxt+')" ';
       h+='title="'+esc(set.a)+'&#10;'+fmt(sM)+' - '+fmt(eM)+(pb.length?'&#10;'+pb.join(", "):"")+'">';
 
-      // Numbered badge (top-right corner)
+      // Numbered badge with temperature color
       if(heat > 0){
-        h+='<div style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:#5856d6;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1">'+heat+'</div>';
+        var bc = heatColor(heat);
+        var isMax = heat === maxHeat && maxHeat > 1;
+        var glowStyle = isMax ? ";--badge-glow:"+bc+";animation:badgePulse 1.5s ease-in-out infinite" : "";
+        h+='<div style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:'+bc+';color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1'+glowStyle+'">'+heat+'</div>';
       }
 
       // Artist name
@@ -1565,80 +1741,110 @@ function renderMeetups(el){
 function renderTodos(el){
   var data = getTodoData();
   var fp = allPicks[identity]||{};
-  var fr = friends();
   var totalPicks = Object.keys(fp).length;
 
-  var h=tabTip('\u{1F4CB} Your personal action items \u2014 resolve conflicts, check out popular sets, and make sure your schedule is ready.');
+  var h=tabTip('\u{1F4CB} Your action items \u2014 resolve conflicts, check popular sets, and finalize your schedule. Maybe-tier conflicts are ignored.');
 
-  // Quick stats bar
+  // Quick stats
+  var critCount=data.conflicts.filter(function(c){return c.priority==="critical";}).length;
+  var worthCount=data.conflicts.filter(function(c){return c.priority==="worth";}).length;
   h+='<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
-  h+='<div style="padding:6px 12px;border-radius:10px;background:'+V('bg2')+';border:1px solid '+V('bg3')+';font-size:11px"><span style="font-weight:700;color:#ff3b30">'+data.conflicts.length+'</span> <span style="color:'+V('tx2')+'">conflicts</span></div>';
-  h+='<div style="padding:6px 12px;border-radius:10px;background:'+V('bg2')+';border:1px solid '+V('bg3')+';font-size:11px"><span style="font-weight:700;color:#ff9500">'+Math.min(data.unrated.length,10)+'</span> <span style="color:'+V('tx2')+'">to check out</span></div>';
-  h+='<div style="padding:6px 12px;border-radius:10px;background:'+V('bg2')+';border:1px solid '+V('bg3')+';font-size:11px"><span style="font-weight:700;color:#5856d6">'+totalPicks+'</span> <span style="color:'+V('tx2')+'">total picks</span></div>';
+  if(critCount>0) h+='<div style="padding:6px 12px;border-radius:10px;background:rgba(255,45,85,0.1);border:1px solid rgba(255,45,85,0.2);font-size:11px"><span style="font-weight:700;color:#ff2d55">'+critCount+'</span> <span style="color:'+V('tx2')+'">critical</span></div>';
+  if(worthCount>0) h+='<div style="padding:6px 12px;border-radius:10px;background:rgba(255,149,0,0.1);border:1px solid rgba(255,149,0,0.2);font-size:11px"><span style="font-weight:700;color:#ff9500">'+worthCount+'</span> <span style="color:'+V('tx2')+'">to decide</span></div>';
+  h+='<div style="padding:6px 12px;border-radius:10px;background:'+V('bg2')+';border:1px solid '+V('bg3')+';font-size:11px"><span style="font-weight:700;color:#5856d6">'+totalPicks+'</span> <span style="color:'+V('tx2')+'">picks</span></div>';
   h+='</div>';
 
-  // ── SECTION 1: Unresolved Conflicts ──
+  // ── CONFLICTS ──
   h+='<div style="margin-bottom:20px">';
-  h+='<div style="font-size:14px;font-weight:700;color:#ff3b30;margin-bottom:8px">\u{1F534} Conflicts to Resolve</div>';
 
   if(data.conflicts.length === 0){
     h+='<div style="padding:16px;border-radius:10px;background:rgba(48,209,88,0.06);border:1px solid rgba(48,209,88,0.15);font-size:12px;color:#30d158;text-align:center">\u2713 No conflicts! Your schedule is clean.</div>';
   } else {
-    data.conflicts.forEach(function(c){
-      var scA=SC[c.a.s]||"#888", scB=SC[c.b.s]||"#888";
-      var tierA=fp[c.a.a], tierB=fp[c.b.a];
+    data.conflicts.forEach(function(conflict){
+      var isCritical = conflict.priority==="critical";
+      var borderColor = isCritical ? "rgba(255,45,85,0.3)" : "rgba(255,149,0,0.3)";
+      var bgColor = isCritical ? "rgba(255,45,85,0.06)" : "rgba(255,149,0,0.04)";
+      var labelColor = isCritical ? "#ff2d55" : "#ff9500";
+      var labelText = isCritical ? "\u{1F534} Must See vs Must See" : "\u{1F7E1} Worth Deciding";
+      var day = conflict.cards[0].set.d;
+      var escKey = esc(conflict.key).replace(/'/g,"\\'");
 
-      h+='<div style="margin-bottom:8px;border-radius:10px;border:1px solid rgba(255,59,48,0.2);overflow:hidden">';
+      h+='<div style="margin-bottom:10px;border-radius:12px;border:1px solid '+borderColor+';overflow:hidden">';
 
-      // Day + time context
-      h+='<div style="padding:6px 10px;background:rgba(255,59,48,0.06);font-size:10px;color:#ff3b30;font-weight:600">'+c.a.d+' \u00B7 Overlapping times</div>';
+      // Header
+      h+='<div style="padding:8px 12px;background:'+bgColor+';display:flex;align-items:center;justify-content:space-between">';
+      h+='<div style="font-size:11px;font-weight:700;color:'+labelColor+'">'+labelText+'</div>';
+      h+='<div style="font-size:10px;color:'+V('tx3')+'">'+day+'</div>';
+      h+='</div>';
 
-      // Two cards with OR
+      // Cards with OR dividers
       h+='<div style="display:flex;align-items:stretch">';
+      conflict.cards.forEach(function(card, idx){
+        var set=card.set;
+        var sc=SC[set.s]||"#888";
 
-      // Card A
-      h+='<div style="flex:1;padding:10px;min-width:0">';
-      h+='<div style="font-size:10px;color:'+V('tx2')+';margin-bottom:2px">'+fmt(toMin(c.a.t0))+' \u2013 '+fmt(toMin(c.a.t1))+'</div>';
-      h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px"><div style="width:2px;height:10px;border-radius:1px;background:'+scA+'"></div><span style="font-size:9px;color:'+scA+';font-weight:600">'+esc(c.a.s)+'</span></div>';
-      h+='<div style="font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:6px">'+esc(c.a.a)+'</div>';
-      if(tierA) h+='<div style="font-size:10px;margin-bottom:6px">'+TC[tierA].e+' '+TC[tierA].l+'</div>';
-      h+='<button onclick="resolveConflict(\''+esc(c.key).replace(/'/g,"\\'")+'\',\'chosen:'+esc(c.a.a).replace(/'/g,"\\'")+'\')" style="width:100%;padding:6px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;background:#30d158;color:#000">Choose this</button>';
+        // OR divider
+        if(idx > 0){
+          h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:28px;flex-shrink:0">';
+          h+='<div style="flex:1;width:1px;background:'+borderColor+'"></div>';
+          h+='<div style="font-size:8px;font-weight:800;color:'+labelColor+';padding:4px 0">OR</div>';
+          h+='<div style="flex:1;width:1px;background:'+borderColor+'"></div>';
+          h+='</div>';
+        }
+
+        h+='<div style="flex:1;padding:10px;min-width:0">';
+
+        // Time
+        h+='<div style="font-size:10px;color:'+V('tx2')+';margin-bottom:2px">'+fmt(toMin(set.t0))+' \u2013 '+fmt(toMin(set.t1))+'</div>';
+
+        // Stage
+        h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:4px">';
+        h+='<div style="width:2px;height:10px;border-radius:1px;background:'+sc+'"></div>';
+        h+='<span style="font-size:9px;color:'+sc+';font-weight:600">'+esc(set.s)+'</span>';
+        h+='</div>';
+
+        // Artist + tier
+        h+='<div style="font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:4px">'+esc(set.a)+'</div>';
+        h+='<div style="font-size:10px;margin-bottom:6px">'+TC[card.tier].e+' '+TC[card.tier].l+'</div>';
+
+        // Crew going
+        if(card.who.length > 0){
+          h+='<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">';
+          card.who.forEach(function(w){
+            h+='<div style="display:flex;align-items:center;gap:2px;padding:1px 6px;border-radius:8px;background:'+fc(w.name)+'15;border:1px solid '+fc(w.name)+'33;font-size:9px">';
+            h+=avatarHtml(w.name,12,6);
+            h+='<span style="color:'+fc(w.name)+';font-weight:600">'+esc(w.name)+'</span>';
+            h+='<span>'+TC[w.tier].e+'</span>';
+            h+='</div>';
+          });
+          h+='</div>';
+        } else {
+          h+='<div style="font-size:9px;color:'+V('tx4')+';margin-bottom:8px">No friends going</div>';
+        }
+
+        // Choose button
+        h+='<button onclick="resolveConflict(\''+escKey+'\',\'chosen:'+esc(set.a).replace(/'/g,"\\'")+'\')" style="width:100%;padding:6px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;background:#30d158;color:#000;touch-action:manipulation">Choose this</button>';
+        h+='</div>';
+      });
       h+='</div>';
 
-      // OR divider
-      h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:30px;flex-shrink:0">';
-      h+='<div style="flex:1;width:1px;background:rgba(255,59,48,0.2)"></div>';
-      h+='<div style="font-size:9px;font-weight:800;color:#ff3b30;padding:6px 0">OR</div>';
-      h+='<div style="flex:1;width:1px;background:rgba(255,59,48,0.2)"></div>';
+      // Bottom options: Split + Decide later
+      h+='<div style="display:flex;gap:6px;padding:8px 10px;border-top:1px solid '+V('bg3')+'">';
+      h+='<button onclick="resolveConflict(\''+escKey+'\',\'split\')" style="flex:1;padding:5px;border-radius:8px;border:1px solid '+V('bd2')+';background:transparent;cursor:pointer;font-size:10px;color:'+V('tx2')+';font-family:inherit;touch-action:manipulation">\u2194\uFE0F Split \u2014 catch both</button>';
+      h+='<button onclick="resolveConflict(\''+escKey+'\',\'deferred\')" style="flex:1;padding:5px;border-radius:8px;border:1px solid '+V('bd2')+';background:transparent;cursor:pointer;font-size:10px;color:'+V('tx2')+';font-family:inherit;touch-action:manipulation">\u23F3 Decide at the festival</button>';
       h+='</div>';
 
-      // Card B
-      h+='<div style="flex:1;padding:10px;min-width:0">';
-      h+='<div style="font-size:10px;color:'+V('tx2')+';margin-bottom:2px">'+fmt(toMin(c.b.t0))+' \u2013 '+fmt(toMin(c.b.t1))+'</div>';
-      h+='<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px"><div style="width:2px;height:10px;border-radius:1px;background:'+scB+'"></div><span style="font-size:9px;color:'+scB+';font-weight:600">'+esc(c.b.s)+'</span></div>';
-      h+='<div style="font-size:13px;font-weight:700;color:'+V('tx')+';margin-bottom:6px">'+esc(c.b.a)+'</div>';
-      if(tierB) h+='<div style="font-size:10px;margin-bottom:6px">'+TC[tierB].e+' '+TC[tierB].l+'</div>';
-      h+='<button onclick="resolveConflict(\''+esc(c.key).replace(/'/g,"\\'")+'\',\'chosen:'+esc(c.b.a).replace(/'/g,"\\'")+'\')" style="width:100%;padding:6px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;background:#30d158;color:#000">Choose this</button>';
       h+='</div>';
-
-      h+='</div>'; // close flex row
-
-      // Defer option
-      h+='<div style="padding:6px 10px;border-top:1px solid '+V('bg3')+';text-align:center">';
-      h+='<button onclick="resolveConflict(\''+esc(c.key).replace(/'/g,"\\'")+'\',\'deferred\')" style="padding:4px 16px;border-radius:8px;border:1px solid '+V('bd2')+';background:transparent;cursor:pointer;font-size:10px;color:'+V('tx2')+';font-family:inherit">Decide later \u2014 keep both for now</button>';
-      h+='</div>';
-
-      h+='</div>'; // close conflict card
     });
   }
   h+='</div>';
 
-  // ── SECTION 2: Popular Sets You Haven't Rated ──
+  // ── POPULAR UNRATED ──
   var showUnrated = data.unrated.slice(0,10);
   if(showUnrated.length > 0){
     h+='<div style="margin-bottom:20px">';
     h+='<div style="font-size:14px;font-weight:700;color:#ff9500;margin-bottom:8px">\u{1F7E1} Popular Sets to Check Out</div>';
-    h+='<div style="font-size:11px;color:'+V('tx3')+';margin-bottom:8px">These sets have 2+ friends going but you haven\u2019t rated them yet.</div>';
+    h+='<div style="font-size:11px;color:'+V('tx3')+';margin-bottom:8px">2+ friends going but you haven\u2019t rated yet.</div>';
     h+='<div style="display:grid;gap:4px">';
     showUnrated.forEach(function(item){
       var set=item.set;
@@ -1656,8 +1862,7 @@ function renderTodos(el){
       h+='<div style="display:flex;gap:2px;margin-top:3px">';
       who.forEach(function(f){ h+=avatarHtml(f,16,7); });
       h+='<span style="font-size:9px;color:'+V('tx2')+';margin-left:2px">'+item.count+' going</span>';
-      h+='</div>';
-      h+='</div>';
+      h+='</div></div>';
       h+='<div style="display:flex;gap:3px">';
       [1,2,3].forEach(function(t){
         h+='<button class="tier-btn" style="width:30px;height:30px;font-size:13px" onclick="togglePick(\''+set.a.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\','+t+')" title="'+TC[t].l+'">'+TC[t].e+'</button>';
@@ -1667,7 +1872,7 @@ function renderTodos(el){
     h+='</div></div>';
   }
 
-  // ── SECTION 3: Schedule Completeness ──
+  // ── COMPLETENESS ──
   h+='<div style="margin-bottom:20px">';
   h+='<div style="font-size:14px;font-weight:700;color:#30d158;margin-bottom:8px">\u{1F7E2} Schedule Completeness</div>';
   h+='<div style="display:grid;gap:6px">';
@@ -1685,7 +1890,7 @@ function renderTodos(el){
   });
   h+='</div></div>';
 
-  // ── SECTION 4: Resolved / Deferred ──
+  // ── RESOLVED ──
   var resolvedKeys = Object.keys(resolvedConflicts);
   if(resolvedKeys.length > 0){
     h+='<div>';
@@ -1694,14 +1899,18 @@ function renderTodos(el){
     resolvedKeys.forEach(function(key){
       var decision = resolvedConflicts[key];
       var parts = key.split("|||");
+      var isSplit = decision === "split";
       var isDeferred = decision === "deferred";
-      var chosen = isDeferred ? null : decision.substring(7);
+      var isChosen = decision.indexOf("chosen:")===0;
+      var chosen = isChosen ? decision.substring(7) : null;
 
       h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:'+V('bg2')+';border:1px solid '+V('bg3')+';opacity:0.7">';
       h+='<div style="flex:1;font-size:11px;color:'+V('tx2')+'">';
-      if(isDeferred){
-        h+='<span style="color:#ff9500">\u23F3</span> <span style="color:'+V('tx')+'">'+esc(parts[0])+'</span> vs <span style="color:'+V('tx')+'">'+esc(parts[1])+'</span> \u2014 deciding later';
-      } else {
+      if(isSplit){
+        h+='\u2194\uFE0F Splitting <span style="color:'+V('tx')+'">'+parts.map(esc).join(' & ')+'</span>';
+      } else if(isDeferred){
+        h+='\u23F3 <span style="color:'+V('tx')+'">'+parts.map(esc).join(' vs ')+'</span> \u2014 deciding at festival';
+      } else if(isChosen){
         h+='\u2713 Chose <span style="color:'+V('tx')+';font-weight:600">'+esc(chosen)+'</span>';
       }
       h+='</div>';
