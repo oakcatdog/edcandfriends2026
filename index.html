@@ -839,10 +839,10 @@ function renderTimeline(el){
       var mt = (allPicks[identity]||{})[set.a];
       var pb = friends().filter(function(f){ return (allPicks[f]||{})[set.a]; });
       var heat = pb.length;
-      var op1 = Math.min(20+heat*15, 80).toString(16).padStart(2,"0");
-      var op2 = Math.min(10+heat*8, 50).toString(16).padStart(2,"0");
-      var bg = heat > 0 ? "linear-gradient(180deg,"+SC[stage]+op1+","+SC[stage]+op2+")" : V('bg2');
-      var bdr = mt ? "2px solid "+TC[mt].c : heat > 0 ? "1px solid "+SC[stage]+"66" : "1px solid "+V('bg3');
+      var heatAlpha = heat === 0 ? 0 : Math.min(0.04 + heat * 0.06, 0.3);
+      var heatColor = isDark ? "rgba(255,255,255,"+heatAlpha+")" : "rgba(0,0,0,"+heatAlpha*0.5+")";
+      var bg = heat > 0 ? heatColor : V('bg2');
+      var bdr = mt ? "2px solid "+TC[mt].c : heat > 0 ? "1px solid "+(isDark?"rgba(255,255,255,0.15)":"rgba(0,0,0,0.1)") : "1px solid "+V('bg3');
       var nxt = mt ? (mt < 3 ? mt+1 : mt) : 1;
 
       h+='<div style="position:absolute;left:'+x+'px;top:'+top+'px;width:'+blockW+'px;height:'+Math.max(height-2,20)+'px;';
