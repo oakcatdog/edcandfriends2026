@@ -10,6 +10,31 @@
 <meta name="theme-color" content="#0a0a14">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiRURDIGFuZCBGcmllbmRzIDIwMjYiLCJzaG9ydF9uYW1lIjoiRURDIEZyaWVuZHMiLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYTBhMTQiLCJ0aGVtZV9jb2xvciI6IiMwYTBhMTQiLCJpY29ucyI6W119">
+<script>
+// Generate PWA icon: gradient background + emoji via SVG
+(function(){
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
+    +'<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">'
+    +'<stop offset="0%" stop-color="#ff2d55"/><stop offset="50%" stop-color="#5856d6"/><stop offset="100%" stop-color="#00d4ff"/>'
+    +'</linearGradient></defs>'
+    +'<rect width="180" height="180" rx="36" fill="url(#g)"/>'
+    +'<foreignObject width="180" height="180">'
+    +'<div xmlns="http://www.w3.org/1999/xhtml" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center;font-size:100px">\u{1FAAC}</div>'
+    +'</foreignObject></svg>';
+  var blob=new Blob([svg],{type:'image/svg+xml'});
+  var url=URL.createObjectURL(blob);
+  // Convert to PNG via canvas for apple-touch-icon compatibility
+  var img=new Image();
+  img.onload=function(){
+    var c=document.createElement("canvas");c.width=180;c.height=180;
+    c.getContext("2d").drawImage(img,0,0);
+    var png=c.toDataURL("image/png");
+    var link=document.createElement("link");link.rel="apple-touch-icon";link.href=png;document.head.appendChild(link);
+    var link2=document.createElement("link");link2.rel="icon";link2.type="image/png";link2.href=png;document.head.appendChild(link2);
+  };
+  img.src=url;
+})();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
@@ -17,7 +42,7 @@
   body.light{--bg:#f2f2f7;--bg2:#ffffff;--bg3:rgba(0,0,0,0.04);--bg4:rgba(0,0,0,0.03);--tx:#1c1c1e;--tx2:#6e6e73;--tx3:#8e8e93;--tx4:#aeaeb2;--bd:rgba(0,0,0,0.08);--bd2:rgba(0,0,0,0.12);--bd3:rgba(0,0,0,0.06);--inbg:rgba(0,0,0,0.04);--hgrad:rgba(88,86,214,0.06);--tabActive:rgba(0,0,0,0.04);--popup:#ffffff}
   body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;min-height:100dvh;-webkit-tap-highlight-color:transparent;transition:background 0.3s,color 0.3s;overflow-y:scroll;-webkit-overflow-scrolling:touch}
   ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
-  .header{padding:20px 20px 0;background:linear-gradient(180deg,var(--hgrad) 0%,transparent 100%)}
+  .header{padding:20px 20px 0;padding-top:calc(20px + env(safe-area-inset-top));background:linear-gradient(180deg,var(--hgrad) 0%,transparent 100%)}
   .header h1{font-size:20px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
   .subtitle{font-size:11px;color:var(--tx3);margin-top:2px}
   .friend-bar{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center}
@@ -28,7 +53,7 @@
   .day-bar{padding:10px 20px;display:flex;gap:6px;border-bottom:1px solid var(--bd)}
   .day-btn{padding:6px 16px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg4);color:var(--tx2);transition:all 0.15s;font-family:inherit}
   .day-btn.active{background:#5856d6;color:#fff}
-  .content{padding:20px;max-height:calc(100dvh - 220px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .content{padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));max-height:calc(100dvh - 220px);overflow-y:auto;-webkit-overflow-scrolling:touch}
   .input{background:var(--inbg);border:1px solid var(--bd2);border-radius:8px;padding:8px 12px;color:var(--tx);font-size:13px;outline:none;font-family:inherit}
   .input:focus{border-color:rgba(88,86,214,0.5)}
   .btn{padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;transition:all 0.15s}
@@ -41,7 +66,7 @@
   .stat-card{padding:14px 16px;border-radius:12px;background:var(--bg2);border:1px solid var(--bd)}
   .stat-value{font-size:28px;font-weight:800}.stat-label{font-size:11px;color:var(--tx2);margin-top:2px}
   .hidden{display:none!important}
-  .login-wrap{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-wrap{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;padding-top:calc(20px + env(safe-area-inset-top))}
   .login-box{width:100%;max-width:400px;padding:32px;border-radius:20px;background:var(--bg2);border:1px solid var(--bd3);text-align:center}
   .login-box h1{font-size:24px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
   .sync-dot{width:8px;height:8px;border-radius:4px;display:inline-block;margin-right:4px}
