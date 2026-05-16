@@ -202,9 +202,14 @@
           &#128203;
           <span id="todo-badge" style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:#ff3b30;color:#fff;font-size:9px;font-weight:800;display:none;align-items:center;justify-content:center;padding:0 4px"></span>
         </button>
-        <button onclick="switchView('welcome',this)" class="theme-toggle" title="Help" style="font-size:16px">&#10067;</button>
-        <button onclick="switchUser()" class="theme-toggle" title="Switch User" style="font-size:16px">&#128100;</button>
-        <button id="theme-btn" class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">&#127774;</button>
+        <div style="position:relative">
+          <button class="theme-toggle" onclick="toggleHamburger()" id="hamburger-btn" title="Menu" style="font-size:18px">&#9776;</button>
+          <div id="hamburger-menu" style="display:none;position:absolute;right:0;top:42px;background:var(--popup);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.4);min-width:180px;z-index:100;overflow:hidden">
+            <button onclick="switchView('welcome',this);closeHamburger()" style="width:100%;padding:12px 16px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;color:var(--tx);text-align:left;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd)"><span style="font-size:16px">&#10067;</span> Help</button>
+            <button onclick="switchUser();closeHamburger()" style="width:100%;padding:12px 16px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;color:var(--tx);text-align:left;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd)"><span style="font-size:16px">&#128100;</span> Switch User</button>
+            <button onclick="toggleTheme();closeHamburger()" style="width:100%;padding:12px 16px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;color:var(--tx);text-align:left;display:flex;align-items:center;gap:10px"><span style="font-size:16px" id="theme-btn">&#127774;</span> Toggle Theme</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="friend-bar" id="friend-bar"></div>
@@ -259,7 +264,8 @@ var showColorPicker = false;
 var meetupSpots = {}; // { "Kinetic Field": "Left side near sound booth", ... }
 var activePinStage = null; // which stage pin popup is showing
 var mapUrl = ""; // user-configurable map image URL
-var meetupEditOpen = false; // collapsed edit section toggle
+var meetupEditOpen = false;
+var meetupImages = {}; // { "Kinetic Field": ["url1","url2"], ... } // collapsed edit section toggle
 var lastLocalWrite = 0; // timestamp of last local pick change
 var resolvedConflicts = {}; // { "artistA|||artistB": "chosen:artistA" or "deferred" }
 var discoverIndex = 0; // current card index in discover mode
@@ -457,6 +463,27 @@ function toggleTheme(){
   else { initLogin(); }
 }
 
+function toggleHamburger(){
+  var menu=document.getElementById("hamburger-menu");
+  if(!menu) return;
+  var showing=menu.style.display!=="none";
+  menu.style.display=showing?"none":"block";
+  if(!showing){
+    setTimeout(function(){
+      document.addEventListener("click",function handler(e){
+        if(!e.target.closest("#hamburger-menu")&&!e.target.closest("#hamburger-btn")){
+          closeHamburger();
+        }
+        document.removeEventListener("click",handler);
+      });
+    },50);
+  }
+}
+function closeHamburger(){
+  var menu=document.getElementById("hamburger-menu");
+  if(menu) menu.style.display="none";
+}
+
 function friends(){ return Object.keys(allPicks); }
 
 // Color function - uses user's chosen color or falls back to palette
@@ -531,6 +558,30 @@ async function saveMapUrl(url){
   try{ await fbPut("edc2026_mapUrl",url); }catch(e){}
 }
 
+async function loadMeetupImages(){
+  try{
+    var r=await fbGet("edc2026_meetupImages");
+    if(r && typeof r==="string"){ try{meetupImages=JSON.parse(r);}catch(e){meetupImages={};} }
+    else if(r && typeof r==="object") meetupImages=r;
+  }catch(e){}
+}
+async function saveMeetupImages(){
+  try{ await fbPut("edc2026_meetupImages",JSON.stringify(meetupImages)); }catch(e){}
+}
+function getStageImages(stage){ return meetupImages[stage]||[]; }
+function hasStageImages(stage){ var imgs=meetupImages[stage]; return imgs && imgs.length>0; }
+function stageImagesHtml(imgs,maxW){
+  maxW=maxW||240;
+  var h='';
+  if(!imgs||!imgs.length) return h;
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">';
+  imgs.forEach(function(url){
+    h+='<img src="'+esc(url)+'" style="max-width:'+maxW+'px;width:100%;border-radius:8px;display:block" onerror="this.style.display=\'none\'" alt="Meetup spot">';
+  });
+  h+='</div>';
+  return h;
+}
+
 function showPin(stage,evt){
   if(evt) evt.stopPropagation();
   showTimelinePin(stage,evt);
@@ -546,10 +597,19 @@ function showTimelinePin(stage, evt){
 
   var spot = getMeetup(stage);
   var sc = SC[stage]||"#888";
+  var imgs = getStageImages(stage);
   var popup = document.createElement("div");
-  popup.style.cssText = "position:fixed;z-index:1000;padding:12px 16px;border-radius:14px;background:"+V('popup')+";border:1px solid "+V('bd2')+";box-shadow:0 8px 30px rgba(0,0,0,0.4);max-width:260px;animation:fadeIn 0.15s ease";
-  popup.innerHTML = '<div style="font-size:10px;font-weight:700;color:'+sc+';text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">\u{1F4CD} '+esc(stage)+'</div>'
+  popup.style.cssText = "position:fixed;z-index:1000;padding:12px 16px;border-radius:14px;background:"+V('popup')+";border:1px solid "+V('bd2')+";box-shadow:0 8px 30px rgba(0,0,0,0.4);max-width:280px;animation:fadeIn 0.15s ease";
+  var inner = '<div style="font-size:10px;font-weight:700;color:'+sc+';text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">\u{1F4CD} '+esc(stage)+'</div>'
     +'<div style="font-size:13px;color:'+V('tx')+';line-height:1.4">'+esc(spot)+'</div>';
+  if(imgs.length>0){
+    inner+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">';
+    imgs.forEach(function(url){
+      inner+='<img src="'+esc(url)+'" style="max-width:240px;width:100%;border-radius:6px" onerror="this.style.display=\'none\'" alt="Meetup">';
+    });
+    inner+='</div>';
+  }
+  popup.innerHTML = inner;
 
   document.body.appendChild(popup);
   tlPinPopup = popup;
@@ -835,6 +895,14 @@ async function syncFromServer(){
       mapUrl = newMap;
       if(identity && currentView === "meetups") renderContent();
     }
+    var newImgs = await fbGet("edc2026_meetupImages");
+    if(newImgs){
+      var parsed = typeof newImgs === "string" ? JSON.parse(newImgs) : newImgs;
+      if(JSON.stringify(meetupImages)!==JSON.stringify(parsed)){
+        meetupImages=parsed;
+        if(identity && currentView === "meetups") renderContent();
+      }
+    }
   } catch(e){}
 }
 
@@ -853,6 +921,7 @@ function startPolling(){
   loadMeetups();
   loadEmojis();
   loadMapUrl();
+  loadMeetupImages();
   pollTimer = setInterval(syncFromServer, 4000);
 }
 
@@ -936,6 +1005,7 @@ document.getElementById("join-input").addEventListener("keydown",function(e){if(
 
 function joinAs(name){
   identity = name;
+  schedPersons = [name]; // default schedule to "Just me"
   if(!allPicks[name]) allPicks[name] = {};
   autoAssignColor(name);
   syncMyPicks();
@@ -2057,10 +2127,20 @@ function renderSchedule(el){
     h+='<div style="display:grid;gap:3px">';
     exportSpots.forEach(function(stage){
       var sc=SC[stage]||"#888";
+      h+='<div style="margin-bottom:4px">';
       h+='<div style="display:flex;align-items:center;gap:6px;font-size:11px">';
       h+='<div style="width:3px;height:10px;border-radius:1px;background:'+sc+'"></div>';
       h+='<span style="color:'+sc+';font-weight:600;min-width:90px">'+esc(stage)+'</span>';
       h+='<span style="color:'+V('tx2')+'">'+esc(getMeetup(stage))+'</span>';
+      h+='</div>';
+      var eImgs=getStageImages(stage);
+      if(eImgs.length>0){
+        h+='<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;margin-left:15px">';
+        eImgs.forEach(function(url){
+          h+='<img src="'+esc(url)+'" style="max-width:120px;border-radius:4px" onerror="this.style.display=\'none\'" crossorigin="anonymous">';
+        });
+        h+='</div>';
+      }
       h+='</div>';
     });
     h+='</div></div>';
@@ -2079,6 +2159,16 @@ function saveMeetupFromInput(stage){
   saveMeetup(stage, val).then(function(){
     var btn=document.getElementById("meetup-save-"+stage.replace(/\s+/g,"-"));
     if(btn){ btn.textContent="\u2713 Saved"; btn.style.background="#30d158"; setTimeout(function(){ btn.textContent="Save"; btn.style.background="#5856d6"; },1500); }
+    renderMeetups(document.getElementById("content"));
+  });
+}
+
+function saveStageImages(stage){
+  var ta=document.getElementById("meetup-imgs-"+stage.replace(/\s+/g,"-"));
+  if(!ta) return;
+  var urls=ta.value.split("\n").map(function(u){return u.trim();}).filter(function(u){return u.length>0;});
+  meetupImages[stage]=urls;
+  saveMeetupImages().then(function(){
     renderMeetups(document.getElementById("content"));
   });
 }
@@ -2104,7 +2194,17 @@ function renderMeetups(el){
       h+='<div style="width:3px;height:14px;border-radius:2px;background:'+stageColor+'"></div>';
       h+='<span style="font-size:12px;font-weight:700;color:'+stageColor+'">'+esc(stage)+'</span>';
       h+='</div>';
+      h+='<div style="flex:1;min-width:0">';
       h+='<div style="font-size:12px;color:'+V('tx')+';line-height:1.4">\u{1F4CD} '+esc(getMeetup(stage))+'</div>';
+      var sImgs=getStageImages(stage);
+      if(sImgs.length>0){
+        h+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">';
+        sImgs.forEach(function(url){
+          h+='<img src="'+esc(url)+'" style="max-width:200px;width:100%;border-radius:6px" onerror="this.style.display=\'none\'" alt="Meetup">';
+        });
+        h+='</div>';
+      }
+      h+='</div>';
       h+='</div>';
     });
     h+='</div></div>';
@@ -2163,7 +2263,25 @@ function renderMeetups(el){
       h+='<div style="display:flex;gap:8px;align-items:center">';
       h+='<input id="'+inputId+'" class="input" value="'+esc(spot)+'" placeholder="e.g. Left side near the sound booth" style="flex:1;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid '+(hasMeetup(stage)?stageColor+"44":V('bd2'))+'" onkeydown="if(event.key===\'Enter\')saveMeetupFromInput(\''+esc(stage).replace(/'/g,"\\'")+'\');">';
       h+='<button id="meetup-save-'+stage.replace(/\s+/g,"-")+'" class="btn btn-primary" style="padding:6px 12px;font-size:11px;border-radius:8px" onclick="saveMeetupFromInput(\''+esc(stage).replace(/'/g,"\\'")+'\')">Save</button>';
-      h+='</div></div>';
+      h+='</div>';
+      // Image URLs
+      var existingImgs=getStageImages(stage);
+      var imgInputId="meetup-imgs-"+stage.replace(/\s+/g,"-");
+      h+='<div style="margin-top:6px">';
+      h+='<div style="font-size:10px;color:'+V('tx3')+';margin-bottom:3px">\u{1F4F7} Photos (one URL per line)</div>';
+      h+='<div style="display:flex;gap:8px;align-items:flex-start">';
+      h+='<textarea id="'+imgInputId+'" class="input" rows="'+(Math.max(1,existingImgs.length)+1)+'" placeholder="Paste image URLs, one per line" style="flex:1;font-size:11px;padding:6px 8px;border-radius:8px;resize:vertical;min-height:32px;font-family:inherit">'+existingImgs.join("\n")+'</textarea>';
+      h+='<button class="btn btn-primary" style="padding:6px 10px;font-size:10px;border-radius:8px" onclick="saveStageImages(\''+esc(stage).replace(/'/g,"\\'")+'\')">Save</button>';
+      h+='</div>';
+      if(existingImgs.length>0){
+        h+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">';
+        existingImgs.forEach(function(url){
+          h+='<img src="'+esc(url)+'" style="max-width:80px;border-radius:4px" onerror="this.style.display=\'none\'">';
+        });
+        h+='</div>';
+      }
+      h+='</div>';
+      h+='</div>';
     });
     h+='</div></div>';
   }
