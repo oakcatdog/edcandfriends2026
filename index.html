@@ -70,7 +70,7 @@
   .stat-card{padding:14px 16px;border-radius:12px;background:var(--bg2);border:1px solid var(--bd)}
   .stat-value{font-size:28px;font-weight:800}.stat-label{font-size:11px;color:var(--tx2);margin-top:2px}
   .hidden{display:none!important}
-  .login-wrap{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-wrap{position:fixed;inset:0;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);z-index:500;overflow-y:auto}
   .login-box{width:100%;max-width:400px;padding:32px;border-radius:20px;background:var(--bg2);border:1px solid var(--bd3);text-align:center}
   .login-box h1{font-size:24px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#5856d6,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
   .sync-dot{width:8px;height:8px;border-radius:4px;display:inline-block;margin-right:4px}
@@ -136,7 +136,7 @@
 <body>
 
 <!-- ======================== SETUP SCREEN ======================== -->
-<div id="setup-screen" class="login-wrap">
+<div id="setup-screen" class="login-wrap hidden">
   <div class="login-box">
     <div style="font-size:40px;margin-bottom:8px">&#9889;</div>
     <h1>EDC 2026</h1>
@@ -2634,6 +2634,8 @@ document.addEventListener("click", function(e){
   // Auto-login if cached identity exists
   var cachedId = localStorage.getItem("edc26-identity");
   if(cachedId && allPicks[cachedId]){
+    document.getElementById("setup-screen").classList.add("hidden");
+    document.getElementById("login-screen").classList.add("hidden");
     identity = cachedId;
     schedPersons = [cachedId];
     document.getElementById("login-screen").classList.add("hidden");
