@@ -904,6 +904,8 @@ async function syncFromServer(){
         if(identity && currentView === "meetups") renderContent();
       }
     }
+    // Cache everything locally for offline use
+    cacheDataLocally();
   } catch(e){}
 }
 
@@ -2511,32 +2513,76 @@ document.addEventListener("click", function(e){
   var btn2 = document.getElementById("login-theme-btn");
   if(btn2) btn2.textContent = icon;
   DB_URL = "https://edc-and-friends-2026-default-rtdb.firebaseio.com";
-  showLogin();
+  loadCachedData(); // Load offline data immediately
+  // Auto-login if cached identity exists
+  var cachedId = localStorage.getItem("edc26-identity");
+  if(cachedId && allPicks[cachedId]){
+    identity = cachedId;
+    schedPersons = [cachedId];
+    document.getElementById("login-screen").classList.add("hidden");
+    document.getElementById("main-app").classList.remove("hidden");
+    var hasAnyPicks = Object.keys(allPicks[cachedId]||{}).length > 0;
+    currentView = hasAnyPicks ? "discover" : "welcome";
+    renderApp();
+    startPolling();
+    startHeartbeat();
+  } else {
+    showLogin();
+  }
 })();
 
-// ── PWA: Service Worker + Offline Cache ──
+// ── PWA: Cache-First Service Worker + Offline Data ──
 if('serviceWorker' in navigator){
-  var swCode = 'var CACHE="edc-v1";var URLS=["/"];self.addEventListener("install",function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(URLS)}))});self.addEventListener("fetch",function(e){if(e.request.url.indexOf("firebase")>-1||e.request.url.indexOf(".json")>-1){e.respondWith(fetch(e.request));return}e.respondWith(caches.match(e.request).then(function(r){return r||fetch(e.request).then(function(res){return caches.open(CACHE).then(function(c){c.put(e.request,res.clone());return res})})}))});';
+  // Cache-first: always serve from cache instantly, update cache in background
+  var swCode = 'var CACHE="edc-v2";'
+    +'self.addEventListener("install",function(e){self.skipWaiting();e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(["./"])}))});'
+    +'self.addEventListener("activate",function(e){e.waitUntil(clients.claim())});'
+    +'self.addEventListener("fetch",function(e){'
+    +'if(e.request.url.indexOf("firebase")>-1||e.request.url.indexOf(".json")>-1){e.respondWith(fetch(e.request).catch(function(){return new Response("{}",{headers:{"Content-Type":"application/json"}})}));return}'
+    +'e.respondWith(caches.match(e.request).then(function(cached){'
+    +'var fetchPromise=fetch(e.request).then(function(res){caches.open(CACHE).then(function(c){c.put(e.request,res)});return res.clone()}).catch(function(){return cached});'
+    +'return cached||fetchPromise}))});';
   var blob = new Blob([swCode],{type:'application/javascript'});
   var swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(function(){
-    // Blob SW not supported (Safari) — rely on apple-mobile-web-app-capable meta tag
-  });
+  navigator.serviceWorker.register(swUrl).catch(function(){});
 }
 
-// Cache Firebase data locally for offline viewing
+// Cache all data to localStorage for offline viewing (works on iOS)
 function cacheDataLocally(){
   try{
     localStorage.setItem("edc26-picks",JSON.stringify(allPicks));
     localStorage.setItem("edc26-colors",JSON.stringify(userColors));
     localStorage.setItem("edc26-emojis",JSON.stringify(userEmojis));
     localStorage.setItem("edc26-meetups",JSON.stringify(meetupSpots));
+    localStorage.setItem("edc26-meetupImgs",JSON.stringify(meetupImages));
     localStorage.setItem("edc26-mapUrl",mapUrl);
     localStorage.setItem("edc26-identity",identity||"");
+    localStorage.setItem("edc26-resolved",JSON.stringify(resolvedConflicts));
+    localStorage.setItem("edc26-skips",JSON.stringify(skippedArtists));
   }catch(e){}
 }
-// Cache after every sync
-var origSync = syncFromServer;
+
+// Load cached data on startup (before Firebase connects)
+function loadCachedData(){
+  try{
+    var p=localStorage.getItem("edc26-picks");
+    if(p) allPicks=JSON.parse(p);
+    var c=localStorage.getItem("edc26-colors");
+    if(c) userColors=JSON.parse(c);
+    var e=localStorage.getItem("edc26-emojis");
+    if(e) userEmojis=JSON.parse(e);
+    var m=localStorage.getItem("edc26-meetups");
+    if(m) meetupSpots=JSON.parse(m);
+    var mi=localStorage.getItem("edc26-meetupImgs");
+    if(mi) meetupImages=JSON.parse(mi);
+    var mu=localStorage.getItem("edc26-mapUrl");
+    if(mu) mapUrl=mu;
+    var r=localStorage.getItem("edc26-resolved");
+    if(r) resolvedConflicts=JSON.parse(r);
+    var s=localStorage.getItem("edc26-skips");
+    if(s) skippedArtists=JSON.parse(s);
+  }catch(e){}
+}
 </script>
 </body>
 </html>
